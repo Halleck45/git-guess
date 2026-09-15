@@ -15,28 +15,9 @@ import (
 // runCommit wraps `git commit`. A -m subject gets the header prefilled;
 // without -m the editor opens on a template starting with the header.
 func runCommit(args []string, opts classifyOptions, stdin *os.File, stdout, stderr io.Writer) error {
-	var subject string
-	var rest []string
-	hasAll := false
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "-m" || a == "--message":
-			if i+1 >= len(args) {
-				return fmt.Errorf("-m needs a value")
-			}
-			i++
-			subject = args[i]
-		case strings.HasPrefix(a, "--message="):
-			subject = strings.TrimPrefix(a, "--message=")
-		case strings.HasPrefix(a, "-m") && len(a) > 2:
-			subject = a[2:]
-		case a == "-a" || a == "--all" || strings.HasPrefix(a, "-a") && !strings.HasPrefix(a, "--") && strings.Contains(a, "a"):
-			hasAll = true
-			rest = append(rest, a)
-		default:
-			rest = append(rest, a)
-		}
+	subject, rest, hasAll, err := parseCommitArgs(args)
+	if err != nil {
+		return err
 	}
 	m, err := model.Default()
 	if err != nil {
@@ -65,13 +46,70 @@ func runCommit(args []string, opts classifyOptions, stdin *os.File, stdout, stde
 		return err
 	}
 	defer os.Remove(tmp.Name())
-	fmt.Fprintf(tmp, "%s \n# conventional guessed %s (%s)", res.formatHeader(""), res.Type, percent(res.Confidence))
-	if len(res.Candidates) > 1 {
-		fmt.Fprintf(tmp, ", also %s (%s)", res.Candidates[1].Type, percent(res.Candidates[1].P))
+	fmt.Fprintf(tmp, "%s \n", res.formatHeader(""))
+	if ch, strip := gitx.CommentChar(); strip {
+		fmt.Fprintf(tmp, "%s conventional guessed %s (%s)", ch, res.Type, percent(res.Confidence))
+		if len(res.Candidates) > 1 {
+			fmt.Fprintf(tmp, ", also %s (%s)", res.Candidates[1].Type, percent(res.Candidates[1].P))
+		}
+		fmt.Fprintln(tmp)
 	}
-	fmt.Fprintln(tmp)
 	tmp.Close()
 	return execGit(append([]string{"commit", "--template", filepath.ToSlash(tmp.Name())}, rest...), stdin, stdout, stderr)
+}
+
+// parseCommitArgs splits git commit arguments into the first -m subject,
+// the arguments passed through, and whether -a/--all was given.
+func parseCommitArgs(args []string) (subject string, rest []string, hasAll bool, err error) {
+	setSubject := func(v string) {
+		if subject == "" {
+			subject = v
+		} else { // further -m are body paragraphs, passed through
+			rest = append(rest, "-m", v)
+		}
+	}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			rest = append(rest, args[i:]...)
+			i = len(args)
+		case a == "--message":
+			if i+1 >= len(args) {
+				return "", nil, false, fmt.Errorf("--message needs a value")
+			}
+			i++
+			setSubject(args[i])
+		case strings.HasPrefix(a, "--message="):
+			setSubject(strings.TrimPrefix(a, "--message="))
+		case a == "--all":
+			hasAll = true
+			rest = append(rest, a)
+		case strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && len(a) > 1:
+			// short option cluster such as -am "msg", -sam "msg", -qa
+			cl := a[1:]
+			if j := strings.IndexByte(cl, 'm'); j >= 0 {
+				if j+1 < len(cl) {
+					setSubject(cl[j+1:])
+				} else if i+1 < len(args) {
+					i++
+					setSubject(args[i])
+				} else {
+					return "", nil, false, fmt.Errorf("-m needs a value")
+				}
+				cl = cl[:j]
+			}
+			if strings.ContainsRune(cl, 'a') {
+				hasAll = true
+			}
+			if cl != "" {
+				rest = append(rest, "-"+cl)
+			}
+		default:
+			rest = append(rest, a)
+		}
+	}
+	return subject, rest, hasAll, nil
 }
 
 func execGit(args []string, stdin *os.File, stdout, stderr io.Writer) error {

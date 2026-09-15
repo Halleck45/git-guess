@@ -130,7 +130,7 @@ func classify(opts classifyOptions) (*Result, error) {
 		res.Scope = scope.Guess(d, hist)
 	}
 	res.Header = res.formatHeader(opts.message)
-	if opts.explain {
+	if opts.explain && len(cands) > 1 {
 		other := m.ClassIndex(cands[1].Type)
 		pos, neg := m.Explain(v, m.ClassIndex(cands[0].Type), other, 8)
 		res.Explain = &Explanation{Against: cands[1].Type, For: pos, Contra: neg}

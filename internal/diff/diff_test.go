@@ -96,3 +96,26 @@ func TestCaps(t *testing.T) {
 		t.Fatalf("truncated=%v lines=%d added=%d", d.Truncated, len(d.Files[0].Lines), d.Files[0].Added)
 	}
 }
+
+func TestParseNoPrefixAndQuotedRename(t *testing.T) {
+	in := "diff --git foo bar.txt foo bar.txt\nindex 1..2 100644\n--- foo bar.txt\n+++ foo bar.txt\n@@ -1 +1 @@\n-a\n+b\n" +
+		"diff --git \"a/z\\\"y.go\" \"b/z\\\"x.go\"\nsimilarity index 100%\nrename from \"z\\\"y.go\"\nrename to \"z\\\"x.go\"\n" +
+		"diff --git i/m.go w/m.go\n--- i/m.go\n+++ w/m.go\n@@ -1 +1 @@\n-a\n+b\n" +
+		"diff --cc merged.go\nindex 1,2..3\n--- a/merged.go\n+++ b/merged.go\n@@@ -1,2 -1,2 +1,2 @@@\n  x\n -a\n +b\n"
+	d := ParseString(in)
+	if len(d.Files) != 4 {
+		t.Fatalf("files=%d", len(d.Files))
+	}
+	if d.Files[0].Path != "foo bar.txt" {
+		t.Errorf("noprefix: %q", d.Files[0].Path)
+	}
+	if d.Files[1].Path != `z"x.go` || d.Files[1].OldPath != `z"y.go` || d.Files[1].Status != Renamed {
+		t.Errorf("quoted rename: %+v", d.Files[1])
+	}
+	if d.Files[2].Path != "m.go" {
+		t.Errorf("mnemonic prefix: %q", d.Files[2].Path)
+	}
+	if d.Files[3].Path != "merged.go" {
+		t.Errorf("combined: %q", d.Files[3].Path)
+	}
+}

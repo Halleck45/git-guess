@@ -61,6 +61,12 @@ func Load(b []byte) (*Model, error) {
 	}
 	m := &Model{hashBits: int(le.Uint32(b[8:])), numDense: int(le.Uint32(b[12:]))}
 	C := int(le.Uint32(b[16:]))
+	if C < 2 || C > 255 {
+		return nil, fmt.Errorf("model: unsupported number of classes %d", C)
+	}
+	if uint64(le.Uint32(b[20:])) > uint64(len(b))/4 {
+		return nil, errors.New("model: truncated weights")
+	}
 	nS := int(le.Uint32(b[20:]))
 	m.scale = math.Float32frombits(le.Uint32(b[24:]))
 	if m.hashBits != features.HashBits || m.numDense != features.NumDense {
@@ -79,8 +85,8 @@ func Load(b []byte) (*Model, error) {
 		m.Classes = append(m.Classes, string(b[off:off+n]))
 		off += n
 	}
-	need := 4*C + 4*m.numDense*C + 4*nS + 2*nS*C + 4*C + 4
-	if off+need > len(b) {
+	need := uint64(4*C) + uint64(4*m.numDense*C) + uint64(4*nS) + uint64(2*nS*C) + uint64(4*C) + 4
+	if uint64(off)+need > uint64(len(b)) {
 		return nil, fmt.Errorf("model: truncated weights (need %d bytes, have %d)", need, len(b)-off)
 	}
 	m.bias = readF32(b[off:], C)

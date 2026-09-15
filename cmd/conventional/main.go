@@ -72,11 +72,23 @@ func (e exitCode) Error() string { return "exit " + strconv.Itoa(int(e)) }
 
 func run(args []string, stdin *os.File, stdout, stderr io.Writer) error {
 	opts := classifyOptions{source: gitx.SourceStaged, top: 3, lambda: 0.7, fallback: true}
-	var quiet, asJSON, noColor bool
+	var quiet, asJSON, noColor, explicitSource bool
 	minConf := -1.0
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
+		if a == "--" {
+			positional = append(positional, args[i+1:]...)
+			break
+		}
+		// --flag=value and -nN forms
+		if eq := strings.IndexByte(a, '='); eq > 0 && strings.HasPrefix(a, "--") {
+			args = append(append(append([]string{}, args[:i]...), a[:eq], a[eq+1:]), args[i+1:]...)
+			a = args[i]
+		} else if len(a) > 2 && strings.HasPrefix(a, "-n") && !strings.HasPrefix(a, "--") {
+			args = append(append(append([]string{}, args[:i]...), "-n", a[2:]), args[i+1:]...)
+			a = args[i]
+		}
 		next := func() (string, error) {
 			if i+1 >= len(args) {
 				return "", fmt.Errorf("flag %s needs a value", a)
@@ -123,11 +135,11 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) error {
 		case a == "--no-prior":
 			opts.noPrior = true
 		case a == "--staged" || a == "--cached":
-			opts.source, opts.fallback = gitx.SourceStaged, false
+			opts.source, opts.fallback, explicitSource = gitx.SourceStaged, false, true
 		case a == "--unstaged":
-			opts.source = gitx.SourceUnstaged
+			opts.source, explicitSource = gitx.SourceUnstaged, true
 		case a == "--all" || a == "-a":
-			opts.source = gitx.SourceAll
+			opts.source, explicitSource = gitx.SourceAll, true
 		case a == "--min-confidence":
 			var s string
 			s, err = next()
@@ -161,7 +173,7 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) error {
 		} else {
 			opts.rev = positional[0]
 		}
-	} else if !isTerminal(stdin) {
+	} else if !explicitSource && !isTerminal(stdin) {
 		b, _ := io.ReadAll(stdin)
 		if len(strings.TrimSpace(string(b))) > 0 {
 			opts.stdin = b

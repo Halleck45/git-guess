@@ -50,7 +50,9 @@ func InRepo() bool {
 
 // diffArgs common to every diff invocation: no color, no external diff, with
 // rename detection and a stable output format.
-var diffArgs = []string{"-c", "diff.noprefix=false", "-c", "core.quotepath=false", "diff", "--no-color", "--no-ext-diff", "-M", "--unified=3"}
+var gitCfg = []string{"-c", "diff.noprefix=false", "-c", "diff.mnemonicPrefix=false", "-c", "core.quotepath=false"}
+
+var diffArgs = append(append([]string{}, gitCfg...), "diff", "--no-color", "--no-ext-diff", "--no-textconv", "-M", "--unified=3")
 
 // Diff returns the unified diff for the requested source. With SourceStaged
 // it falls back to the working tree when the index is clean, and reports the
@@ -86,7 +88,7 @@ func Diff(src Source, allowFallback bool) ([]byte, Source, error) {
 		}
 		return out, SourceUnstaged, nil
 	case SourceAll:
-		out, err := run(append(diffArgs, "HEAD")...)
+		out, err := run(append(diffArgs, "HEAD", "--")...)
 		if err != nil {
 			// unborn branch: everything staged is the diff
 			out, err = run(append(diffArgs, "--cached")...)
@@ -105,12 +107,18 @@ func Diff(src Source, allowFallback bool) ([]byte, Source, error) {
 // DiffRev returns the diff of a revision (single commit) or a range (a..b).
 func DiffRev(rev string) ([]byte, error) {
 	if strings.Contains(rev, "..") {
-		return run(append(diffArgs, rev)...)
+		return run(append(diffArgs, rev, "--")...)
 	}
-	return run("-c", "core.quotepath=false", "show", "--no-color", "--no-ext-diff", "-M", "--unified=3", "--format=", rev)
+	show := append(append([]string{}, gitCfg...), "show", "--no-color", "--no-ext-diff", "--no-textconv", "-M", "--unified=3", "--format=")
+	// Merge commits: diff against the first parent rather than a combined diff.
+	out, err := run(append(show, "--diff-merges=first-parent", rev, "--")...)
+	if err != nil { // older git without --diff-merges
+		out, err = run(append(show, rev, "--")...)
+	}
+	return out, err
 }
 
-var ccRe = regexp.MustCompile(`^([A-Za-z]+)(?:\(([^)]*)\))?!?:\s`)
+var ccRe = regexp.MustCompile(`^([A-Za-z]+)(?:\(([^)]*)\))?!?:(?:\s|$)`)
 
 var aliases = map[string]string{"tests": "test", "feature": "feat", "bugfix": "fix", "doc": "docs", "bug": "fix"}
 
@@ -174,14 +182,37 @@ func ReadHistoryRange(skip, n int, known []string) (*History, error) {
 	return h, nil
 }
 
-// HooksDir returns the directory where hooks live, honoring core.hooksPath.
+// HooksDir returns the directory where hooks live. git rev-parse already
+// honors core.hooksPath (and resolves it against the work tree root); the
+// boolean only reports whether a custom path is configured.
 func HooksDir() (string, bool, error) {
-	if out, err := run("config", "--get", "core.hooksPath"); err == nil && len(bytes.TrimSpace(out)) > 0 {
-		return strings.TrimSpace(string(out)), true, nil
-	}
 	out, err := run("rev-parse", "--git-path", "hooks")
 	if err != nil {
 		return "", false, err
 	}
-	return strings.TrimSpace(string(out)), false, nil
+	custom := false
+	if c, err := run("config", "--get", "core.hooksPath"); err == nil && len(bytes.TrimSpace(c)) > 0 {
+		custom = true
+	}
+	return strings.TrimSpace(string(out)), custom, nil
+}
+
+// CommentChar returns the character git treats as a comment in commit
+// messages, and whether git will strip comment lines at all (commit.cleanup).
+func CommentChar() (string, bool) {
+	ch := "#"
+	if out, err := run("config", "--get", "core.commentChar"); err == nil {
+		v := strings.TrimSpace(string(out))
+		if v != "" && v != "auto" {
+			ch = v
+		}
+	}
+	strip := true
+	if out, err := run("config", "--get", "commit.cleanup"); err == nil {
+		switch strings.TrimSpace(string(out)) {
+		case "whitespace", "verbatim", "scissors":
+			strip = false
+		}
+	}
+	return ch, strip
 }

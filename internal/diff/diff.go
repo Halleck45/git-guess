@@ -82,6 +82,19 @@ func Parse(r io.Reader) (*Diff, error) {
 	for sc.Scan() {
 		line := sc.Text()
 		switch {
+		case strings.HasPrefix(line, "diff --cc ") || strings.HasPrefix(line, "diff --combined "):
+			// Combined diff of a merge: we only learn the path; hunks use a
+			// different syntax and are ignored.
+			if len(d.Files) >= MaxFiles {
+				d.Truncated = true
+				cur = nil
+				inBody = false
+				continue
+			}
+			d.Files = append(d.Files, File{})
+			cur = &d.Files[len(d.Files)-1]
+			cur.Path = cleanPath(strings.TrimPrefix(strings.TrimPrefix(line, "diff --cc "), "diff --combined "))
+			inBody = false
 		case strings.HasPrefix(line, "diff --git "):
 			if len(d.Files) >= MaxFiles {
 				d.Truncated = true
@@ -104,6 +117,9 @@ func Parse(r io.Reader) (*Diff, error) {
 				d.Files = append(d.Files, File{})
 				cur = &d.Files[len(d.Files)-1]
 				cur.Path = cleanPath(line[4:])
+				if cur.Path == "" { // --- /dev/null
+					cur.Status = Added
+				}
 				inBody = false
 			}
 		case !inBody && strings.HasPrefix(line, "new file mode "):
@@ -114,15 +130,15 @@ func Parse(r io.Reader) (*Diff, error) {
 		case !inBody && strings.HasPrefix(line, "new mode "):
 			cur.Mode = strings.TrimSpace(line[len("new mode "):])
 		case !inBody && strings.HasPrefix(line, "rename from "):
-			cur.OldPath = line[len("rename from "):]
+			cur.OldPath = unquote(line[len("rename from "):])
 			cur.Status = Renamed
 		case !inBody && strings.HasPrefix(line, "rename to "):
-			cur.Path = line[len("rename to "):]
+			cur.Path = unquote(line[len("rename to "):])
 		case !inBody && strings.HasPrefix(line, "copy from "):
-			cur.OldPath = line[len("copy from "):]
+			cur.OldPath = unquote(line[len("copy from "):])
 			cur.Status = Copied
 		case !inBody && strings.HasPrefix(line, "copy to "):
-			cur.Path = line[len("copy to "):]
+			cur.Path = unquote(line[len("copy to "):])
 		case !inBody && strings.HasPrefix(line, "Binary files "):
 			cur.Binary = true
 		case !inBody && strings.HasPrefix(line, "GIT binary patch"):
@@ -195,12 +211,17 @@ func splitGitHeader(s string) (newPath, oldPath string) {
 	}
 	// Common case: "a/path b/path". Paths may contain spaces; find the split
 	// where the left starts with a/ and the right with b/.
+	hasPrefix := len(s) >= 2 && s[1] == '/'
 	for i := 1; i < len(s); i++ {
-		if s[i] == ' ' && strings.HasPrefix(s[i+1:], "b/") && strings.HasPrefix(s, "a/") {
-			l, r := s[:i], s[i+1:]
-			if strings.TrimPrefix(l, "a/") == strings.TrimPrefix(r, "b/") {
-				return stripPrefix(r), stripPrefix(l)
-			}
+		if s[i] != ' ' {
+			continue
+		}
+		l, r := s[:i], s[i+1:]
+		if hasPrefix && len(r) >= 2 && r[1] == '/' && stripPrefix(l) == stripPrefix(r) {
+			return stripPrefix(r), stripPrefix(l)
+		}
+		if !hasPrefix && l == r { // diff.noprefix=true
+			return r, l
 		}
 	}
 	// Fallback: last occurrence of " b/".
@@ -251,12 +272,25 @@ func splitQuoted(s string) []string {
 
 func isOctal(c byte) bool { return c >= '0' && c <= '7' }
 
+// stripPrefix removes the one-letter prefix git adds (a/, b/, and the
+// mnemonic i/, w/, c/, o/ variants).
 func stripPrefix(p string) string {
 	p = strings.TrimSpace(p)
-	if len(p) >= 2 && (p[0] == 'a' || p[0] == 'b' || p[0] == 'i' || p[0] == 'w' || p[0] == 'c' || p[0] == 'o') && p[1] == '/' {
+	if len(p) >= 2 && p[1] == '/' && (p[0] == 'a' || p[0] == 'b' || p[0] == 'i' || p[0] == 'w' || p[0] == 'c' || p[0] == 'o') {
 		return p[2:]
 	}
 	return p
+}
+
+// unquote handles quoted paths on rename/copy lines.
+func unquote(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "\"") {
+		if q := splitQuoted(s); len(q) == 1 {
+			return q[0]
+		}
+	}
+	return s
 }
 
 // cleanPath handles "--- a/path\tdate" and /dev/null.

@@ -25,3 +25,12 @@ func TestParseHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestParseHeaderBare(t *testing.T) {
+	if typ, _, ok := ParseHeader("docs:", []string{"docs"}); !ok || typ != "docs" {
+		t.Errorf("bare header not recognized")
+	}
+	if _, _, ok := ParseHeader("docs:x", []string{"docs"}); ok {
+		t.Errorf("docs:x should not match")
+	}
+}

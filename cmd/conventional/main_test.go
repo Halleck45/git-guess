@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func git(t *testing.T, dir string, args ...string) string {
@@ -145,5 +146,98 @@ func TestHookInstall(t *testing.T) {
 	os.WriteFile(p, []byte("#!/bin/sh\necho custom\n"), 0o755)
 	if err := runHook([]string{"install"}, &out, &out); err == nil {
 		t.Fatal("expected refusal on foreign hook")
+	}
+}
+
+func TestParseCommitArgs(t *testing.T) {
+	cases := []struct {
+		in      []string
+		subject string
+		rest    []string
+		all     bool
+	}{
+		{[]string{"-m", "add login"}, "add login", nil, false},
+		{[]string{"-am", "add login"}, "add login", []string{"-a"}, true},
+		{[]string{"-sam", "add login", "--no-verify"}, "add login", []string{"-sa", "--no-verify"}, true},
+		{[]string{"-qa"}, "", []string{"-qa"}, true},
+		{[]string{"--all", "-m", "x"}, "x", []string{"--all"}, true},
+		{[]string{"-m", "subject", "-m", "body"}, "subject", []string{"-m", "body"}, false},
+		{[]string{"-mvalue"}, "value", nil, false},
+		{[]string{"--message=x", "--", "file"}, "x", []string{"--", "file"}, false},
+	}
+	for _, c := range cases {
+		s, rest, all, err := parseCommitArgs(c.in)
+		if err != nil || s != c.subject || all != c.all || strings.Join(rest, " ") != strings.Join(c.rest, " ") {
+			t.Errorf("%v: got (%q, %v, %v, %v) want (%q, %v, %v)", c.in, s, rest, all, err, c.subject, c.rest, c.all)
+		}
+	}
+}
+
+func TestHookEdgeCases(t *testing.T) {
+	dir := tempRepo(t)
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# hi\n\nMore words here.\n"), 0o644)
+	git(t, dir, "add", ".")
+	msg := filepath.Join(dir, "MSG")
+	check := func(content, source, sha, wantPrefix string) {
+		t.Helper()
+		os.WriteFile(msg, []byte(content), 0o644)
+		args := []string{msg, source}
+		if sha != "" {
+			args = append(args, sha)
+		}
+		hookRun(args, &bytes.Buffer{})
+		b, _ := os.ReadFile(msg)
+		if !strings.HasPrefix(string(b), wantPrefix) {
+			t.Errorf("source=%q content=%q: got %q, want prefix %q", source, content, b, wantPrefix)
+		}
+	}
+	check("#123 update readme\n", "message", "", "docs: #123 update readme")
+	check("fixup! docs: x\n", "message", "", "fixup! docs: x")
+	check("squash! something\n", "message", "", "squash! something")
+	check("Revert \"docs: x\"\n", "message", "", "Revert \"docs: x\"")
+	check("amended\n", "message", "abc123", "amended")
+	check("docs: \n# comment\n", "template", "", "docs: \n")
+	check("docs:\n", "template", "", "docs:\n")
+	check("subject\n\nbody paragraph\n", "message", "", "docs: subject\n\nbody paragraph")
+}
+
+func TestRunStagedIgnoresStdinWhenExplicit(t *testing.T) {
+	dir := tempRepo(t)
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# hi\n\nMore.\n"), 0o644)
+	git(t, dir, "add", ".")
+	r, w, _ := os.Pipe()
+	w.WriteString("diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1 +1 @@\n-a\n+b\n")
+	// w stays open: reading stdin would block
+	var out bytes.Buffer
+	done := make(chan error, 1)
+	go func() { done <- run([]string{"--staged", "--json"}, r, &out, &out) }()
+	select {
+	case err := <-done:
+		if err != nil || !strings.Contains(out.String(), `"source": "staged"`) {
+			t.Fatalf("err=%v out=%s", err, out.String())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("run blocked on stdin despite --staged")
+	}
+	w.Close()
+}
+
+func TestFlagForms(t *testing.T) {
+	dir := tempRepo(t)
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# hi\n\nMore.\n"), 0o644)
+	git(t, dir, "add", ".")
+	var out bytes.Buffer
+	if err := run([]string{"--top=1", "--json", "--min-confidence=0"}, os.Stdin, &out, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out.String(), `"type"`) != 2 { // one at top level, one candidate
+		t.Errorf("--top=1 not honored: %s", out.String())
+	}
+	out.Reset()
+	if err := run([]string{"-n2", "--json"}, os.Stdin, &out, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out.String(), `"type"`) != 3 {
+		t.Errorf("-n2 not honored: %s", out.String())
 	}
 }

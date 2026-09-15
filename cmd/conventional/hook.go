@@ -118,13 +118,30 @@ func hookRun(args []string, stderr io.Writer) error {
 	if err != nil {
 		return nil
 	}
-	content := string(b)
-	first, firstIdx := firstContentLine(content)
-	if hasConventionalPrefix(first, m.Classes) {
-		return nil
+	if len(args) > 2 && args[2] != "" {
+		return nil // amend: the staged delta is not the whole change
 	}
 	if os.Getenv("CONVENTIONAL_HOOK") == "0" {
 		return nil
+	}
+	content := string(b)
+	ch, strip := gitx.CommentChar()
+	var first string
+	firstIdx := 0
+	if source == "message" {
+		// git keeps every line of a -m message (no comment stripping), so
+		// the subject is the raw first line.
+		first = strings.TrimSpace(strings.SplitN(content, "\n", 2)[0])
+	} else {
+		first, firstIdx = firstContentLine(content, ch)
+	}
+	if hasConventionalPrefix(first, m.Classes) {
+		return nil
+	}
+	for _, p := range []string{"fixup! ", "squash! ", "amend! ", "Revert \"", "Reapply \""} {
+		if strings.HasPrefix(first, p) {
+			return nil // git generated this subject on purpose
+		}
 	}
 	res, err := classify(classifyOptions{source: gitx.SourceStaged, fallback: false, top: 2, lambda: 0.7, message: first})
 	if err != nil {
@@ -133,32 +150,34 @@ func hookRun(args []string, stderr io.Writer) error {
 	var out string
 	if first == "" {
 		// Interactive commit: prefill "type(scope): " on the first line.
-		out = res.formatHeader("") + " " + content
-		if !strings.HasPrefix(content, "\n") {
-			out = res.formatHeader("") + " \n" + content
+		out = res.formatHeader("") + " \n" + strings.TrimPrefix(content, "\n")
+		if strip {
+			// Add a comment so the user sees the alternatives.
+			out += fmt.Sprintf("%s\n%s conventional: %s (%s)", ch, ch, res.Type, percent(res.Confidence))
+			if len(res.Candidates) > 1 {
+				out += fmt.Sprintf(", or %s (%s)", res.Candidates[1].Type, percent(res.Candidates[1].P))
+			}
+			out += "\n"
 		}
-		// Add a comment so the user sees the alternatives.
-		out = out + fmt.Sprintf("#\n# conventional: %s (%s)", res.Type, percent(res.Confidence))
-		if len(res.Candidates) > 1 {
-			out += fmt.Sprintf(", or %s (%s)", res.Candidates[1].Type, percent(res.Candidates[1].P))
-		}
-		out += "\n"
 	} else {
 		lines := strings.Split(content, "\n")
 		lines[firstIdx] = res.formatHeader(first)
 		out = strings.Join(lines, "\n")
 		fmt.Fprintln(stderr, "conventional:", res.formatHeader(first))
 	}
-	return os.WriteFile(file, []byte(out), 0o644)
+	if err := os.WriteFile(file, []byte(out), 0o644); err != nil {
+		fmt.Fprintln(stderr, "conventional: could not update the message:", err)
+	}
+	return nil // never block a commit
 }
 
 // firstContentLine returns the first non-comment line and its index.
-func firstContentLine(content string) (string, int) {
+func firstContentLine(content, commentChar string) (string, int) {
 	sc := bufio.NewScanner(strings.NewReader(content))
 	i := 0
 	for sc.Scan() {
 		l := sc.Text()
-		if !strings.HasPrefix(l, "#") {
+		if !strings.HasPrefix(l, commentChar) {
 			return strings.TrimSpace(l), i
 		}
 		i++
