@@ -143,7 +143,13 @@ type History struct {
 
 // ReadHistory inspects the last n commit subjects.
 func ReadHistory(n int, known []string) (*History, error) {
-	out, err := run("log", "--no-merges", "--format=%s", fmt.Sprintf("-n%d", n))
+	return ReadHistoryRange(0, n, known)
+}
+
+// ReadHistoryRange inspects n commit subjects, skipping the most recent
+// `skip` ones.
+func ReadHistoryRange(skip, n int, known []string) (*History, error) {
+	out, err := run("log", "--no-merges", "--format=%s", fmt.Sprintf("--skip=%d", skip), fmt.Sprintf("-n%d", n))
 	if err != nil {
 		return nil, err
 	}

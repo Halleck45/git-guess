@@ -31,6 +31,7 @@ conventional                       # staged changes (falls back to the working t
 conventional -m "add login"        # prints a complete header: feat(auth): add login
 git diff | conventional            # any unified diff on stdin
 conventional HEAD~1                # a commit, or a range such as main..feature
+conventional eval                  # score it against your own history
 ```
 
 When stdout is not a terminal, the output is exactly one line (the header), so it composes with anything.
@@ -58,6 +59,21 @@ This writes a `prepare-commit-msg` hook (it respects `core.hooksPath`). From the
 - merge, squash and amend messages are never rewritten
 
 Skip it once with `CONVENTIONAL_HOOK=0 git commit -m "..."`. Remove it with `conventional hook uninstall`. The hook never blocks a commit: if the model or git fails, the message goes through as is.
+
+### Check it on your own repository
+
+```
+$ conventional eval
+replayed 248 commits of this repository
+  top-1 75%   top-2 91%   (using this repo's history)
+
+  chore      144/158  █████████░  guessed as docs 9, ci 2
+  fix         11/23   █████░░░░░  guessed as chore 8, feat 2
+  docs        17/18   █████████░  guessed as chore 1
+  ...
+```
+
+`conventional eval` replays the last 200 conventional commits of the repository (`-n` changes that), guesses each one from its diff and compares with the type the author chose. Add `--with-message` to also feed it the subject line, as the hook does. The history prior is computed from commits older than the replayed window, so the score is what you would have seen at the time.
 
 ### Machine readable
 
