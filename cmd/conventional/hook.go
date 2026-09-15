@@ -1,0 +1,167 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/Halleck45/conventional/internal/gitx"
+	"github.com/Halleck45/conventional/internal/model"
+)
+
+const hookMarker = "# managed by conventional"
+
+const hookScript = `#!/bin/sh
+` + hookMarker + ` — https://github.com/Halleck45/conventional
+command -v conventional >/dev/null 2>&1 || exit 0
+exec conventional hook run "$@"
+`
+
+func runHook(args []string, stdout, stderr io.Writer) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: conventional hook install|uninstall|run")
+	}
+	switch args[0] {
+	case "install":
+		return hookInstall(args[1:], stdout)
+	case "uninstall":
+		return hookUninstall(stdout)
+	case "run":
+		return hookRun(args[1:], stderr)
+	}
+	return fmt.Errorf("unknown hook command %q", args[0])
+}
+
+func hookPath() (string, bool, error) {
+	if !gitx.InRepo() {
+		return "", false, fmt.Errorf("not a git repository")
+	}
+	dir, custom, err := gitx.HooksDir()
+	if err != nil {
+		return "", false, err
+	}
+	return filepath.Join(dir, "prepare-commit-msg"), custom, nil
+}
+
+func hookInstall(args []string, stdout io.Writer) error {
+	force := len(args) > 0 && args[0] == "--force"
+	p, custom, err := hookPath()
+	if err != nil {
+		return err
+	}
+	if b, err := os.ReadFile(p); err == nil {
+		if strings.Contains(string(b), hookMarker) {
+			fmt.Fprintf(stdout, "hook already installed at %s\n", p)
+			return nil
+		}
+		if !force {
+			return fmt.Errorf("%s already exists and is not ours.\nAdd this line to it:\n\n    conventional hook run \"$@\"\n\nor re-run with --force to replace it", p)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(p, []byte(hookScript), 0o755); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "installed %s\n", p)
+	if custom {
+		fmt.Fprintln(stdout, "note: core.hooksPath is set, the hook was written there")
+	}
+	fmt.Fprintln(stdout, "git commit -m \"add login\" now becomes \"feat: add login\" (uninstall with: conventional hook uninstall)")
+	return nil
+}
+
+func hookUninstall(stdout io.Writer) error {
+	p, _, err := hookPath()
+	if err != nil {
+		return err
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		fmt.Fprintln(stdout, "no hook installed")
+		return nil
+	}
+	if !strings.Contains(string(b), hookMarker) {
+		return fmt.Errorf("%s is not managed by conventional, leaving it alone", p)
+	}
+	if err := os.Remove(p); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "removed %s\n", p)
+	return nil
+}
+
+// hookRun implements prepare-commit-msg: $1 = message file, $2 = source
+// (empty, message, template, merge, squash, commit), $3 = sha for amend.
+func hookRun(args []string, stderr io.Writer) error {
+	if len(args) == 0 {
+		return nil
+	}
+	file := args[0]
+	source := ""
+	if len(args) > 1 {
+		source = args[1]
+	}
+	switch source {
+	case "merge", "squash", "commit":
+		return nil // keep git's own message
+	}
+	m, err := model.Default()
+	if err != nil {
+		return nil // never block a commit
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return nil
+	}
+	content := string(b)
+	first, firstIdx := firstContentLine(content)
+	if hasConventionalPrefix(first, m.Classes) {
+		return nil
+	}
+	if os.Getenv("CONVENTIONAL_HOOK") == "0" {
+		return nil
+	}
+	res, err := classify(classifyOptions{source: gitx.SourceStaged, fallback: false, top: 2, lambda: 0.7, message: first})
+	if err != nil {
+		return nil
+	}
+	var out string
+	if first == "" {
+		// Interactive commit: prefill "type(scope): " on the first line.
+		out = res.formatHeader("") + " " + content
+		if !strings.HasPrefix(content, "\n") {
+			out = res.formatHeader("") + " \n" + content
+		}
+		// Add a comment so the user sees the alternatives.
+		out = out + fmt.Sprintf("#\n# conventional: %s (%s)", res.Type, percent(res.Confidence))
+		if len(res.Candidates) > 1 {
+			out += fmt.Sprintf(", or %s (%s)", res.Candidates[1].Type, percent(res.Candidates[1].P))
+		}
+		out += "\n"
+	} else {
+		lines := strings.Split(content, "\n")
+		lines[firstIdx] = res.formatHeader(first)
+		out = strings.Join(lines, "\n")
+		fmt.Fprintln(stderr, "conventional:", res.formatHeader(first))
+	}
+	return os.WriteFile(file, []byte(out), 0o644)
+}
+
+// firstContentLine returns the first non-comment line and its index.
+func firstContentLine(content string) (string, int) {
+	sc := bufio.NewScanner(strings.NewReader(content))
+	i := 0
+	for sc.Scan() {
+		l := sc.Text()
+		if !strings.HasPrefix(l, "#") {
+			return strings.TrimSpace(l), i
+		}
+		i++
+	}
+	return "", 0
+}

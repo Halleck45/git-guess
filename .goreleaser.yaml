@@ -1,0 +1,81 @@
+version: 2
+
+project_name: conventional
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: conventional
+    main: ./cmd/conventional
+    binary: conventional
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - '^docs(\([[:word:]]+\))??!?:'
+      - '^test(\([[:word:]]+\))??!?:'
+      - '^chore(\([[:word:]]+\))??!?:'
+      - '^ci(\([[:word:]]+\))??!?:'
+
+homebrew_casks:
+  - name: conventional
+    repository:
+      owner: Halleck45
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/Halleck45/conventional
+    description: Guess the Conventional Commits type of a change from its diff
+    license: MIT
+    binary: conventional
+    commit_author:
+      name: goreleaser
+      email: bot@goreleaser.com
+
+release:
+  github:
+    owner: Halleck45
+    name: conventional
+  draft: false
+  prerelease: auto
