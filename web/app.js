@@ -130,7 +130,6 @@ diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
     ['<span class="t-dim">$ </span>git guess'],
     ['<span class="t-ok">✔</span> <span class="t-b">feat(auth)</span>  <span class="t-dim">████████░░</span> <span class="t-ok">82%</span>', 0],
     ['<span class="t-dim">  also:</span> fix <span class="t-dim">11% ·</span> refactor <span class="t-dim">5%</span>', 0],
-    ['<span class="t-dim">  learned from 1000 commits of this repo</span>', 0],
     [''],
     ['<span class="t-dim">$ </span>git commit -m "add magic links"'],
     ['<span class="t-acc">git guess:</span> feat(auth): add magic links', 0],

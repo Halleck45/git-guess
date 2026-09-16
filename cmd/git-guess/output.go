@@ -74,9 +74,6 @@ func render(w io.Writer, r *Result, quiet, asJSON, tty bool, st style) {
 			fmt.Fprintf(w, "  %s %s\n", st.dim("also:"), strings.Join(alts, st.dim(" · ")))
 		}
 	}
-	if r.History > 0 {
-		fmt.Fprintf(w, "  %s\n", st.dim(fmt.Sprintf("learned from %d commits of this repo", r.History)))
-	}
 	if len(r.Nearest) > 0 {
 		fmt.Fprintf(w, "\n  %s\n", st.dim("closest past commits of this repo"))
 		for i, n := range r.Nearest {
