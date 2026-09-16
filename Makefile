@@ -1,7 +1,7 @@
 .PHONY: build test lint collect featurize train train-meta release-snapshot
 
 build:
-	go build -o conventional ./cmd/conventional
+	go build -o git-guess ./cmd/git-guess
 
 test:
 	go test ./...

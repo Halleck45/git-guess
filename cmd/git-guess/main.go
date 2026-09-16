@@ -1,4 +1,4 @@
-// Command conventional guesses the Conventional Commits type of a change.
+// Command git-guess guesses the Conventional Commits type of a change.
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/gitx"
+	"github.com/Halleck45/git-guess/internal/gitx"
 )
 
 var (
@@ -18,17 +18,17 @@ var (
 	date    = ""
 )
 
-const usage = `conventional — guess the Conventional Commits type of a change
+const usage = `git guess — feat or fix? Let git guess. Reads the diff, writes the Conventional Commits type.
 
 Usage:
-  conventional [flags]                 classify staged changes (or the working tree when nothing is staged)
-  conventional [flags] <rev>           classify a commit or a range (HEAD~1, main..feature)
-  git diff | conventional [flags]      classify a diff from stdin
-  conventional commit [git commit args] commit with the type prefilled
-  conventional hook install|uninstall  prefill the type on every git commit
-  conventional check [<base>..<head>]  lint commit types semantically (for CI; --github for annotations)
-  conventional eval [-n 200]           replay this repository's history and score the guesses
-  conventional version
+  git guess [flags]                    staged changes (or the working tree when nothing is staged)
+  git guess [flags] <rev>              a commit or a range (HEAD~1, main..feature)
+  git diff | git-guess [flags]         a diff from stdin
+  git guess commit [git commit args]   commit with the type prefilled
+  git guess hook install|uninstall     prefill the type on every git commit
+  git guess check [<base>..<head>]     lint commit types semantically (for CI; --github for annotations)
+  git guess eval [-n 200]              replay this repository's history and score the guesses
+  git guess version
 
 Flags:
   -m, --message <subject>   draft subject; prints a complete header "type(scope): subject"
@@ -47,10 +47,10 @@ Flags:
   -h, --help                this help
 
 Examples:
-  conventional                     ✔ feat(auth)  ████████░░ 82%
-  conventional -m "add login"      feat(auth): add login
-  git commit -m "$(conventional -m "add login")"
-  conventional commit -m "add login"
+  git guess                        ✔ feat(auth)  ████████░░ 82%
+  git guess -m "add login"         feat(auth): add login
+  git commit -m "$(git guess -m "add login")"
+  git guess commit -m "add login"
 `
 
 func main() {
@@ -59,7 +59,7 @@ func main() {
 		if errors.As(err, &ec) {
 			os.Exit(int(ec))
 		}
-		fmt.Fprintln(os.Stderr, "conventional:", err)
+		fmt.Fprintln(os.Stderr, "git-guess:", err)
 		if errors.Is(err, gitx.ErrNoChanges) {
 			fmt.Fprintln(os.Stderr, "hint: stage some changes with git add, pass a revision, or pipe a diff on stdin")
 		}
@@ -107,7 +107,7 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) error {
 			if commit != "" {
 				v += " (" + commit[:min(7, len(commit))] + ", " + date + ")"
 			}
-			fmt.Fprintln(stdout, "conventional", v)
+			fmt.Fprintln(stdout, "git-guess", v)
 			return nil
 		case a == "-m" || a == "--message":
 			opts.message, err = next()

@@ -7,11 +7,11 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/diff"
-	"github.com/Halleck45/conventional/internal/features"
-	"github.com/Halleck45/conventional/internal/gitx"
-	"github.com/Halleck45/conventional/internal/history"
-	"github.com/Halleck45/conventional/internal/model"
+	"github.com/Halleck45/git-guess/internal/diff"
+	"github.com/Halleck45/git-guess/internal/features"
+	"github.com/Halleck45/git-guess/internal/gitx"
+	"github.com/Halleck45/git-guess/internal/history"
+	"github.com/Halleck45/git-guess/internal/model"
 )
 
 // checkResult is the verdict for one commit.
@@ -25,7 +25,7 @@ type checkResult struct {
 	Status     string  `json:"status"` // ok, missing, disputed
 }
 
-const checkUsage = `usage: conventional check [<base>..<head>] [--strict] [--min-confidence 0.75] [--json] [--github]
+const checkUsage = `usage: git guess check [<base>..<head>] [--strict] [--min-confidence 0.75] [--json] [--github]
 
 Checks every commit of the range (default: the current branch against its
 upstream, or HEAD~10..HEAD) for a Conventional Commits type, and flags

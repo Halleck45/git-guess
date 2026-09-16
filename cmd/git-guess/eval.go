@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/gitx"
-	"github.com/Halleck45/conventional/internal/history"
-	"github.com/Halleck45/conventional/internal/model"
+	"github.com/Halleck45/git-guess/internal/gitx"
+	"github.com/Halleck45/git-guess/internal/history"
+	"github.com/Halleck45/git-guess/internal/model"
 )
 
 // runEval replays the last n conventional commits of the current repository

@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/diff"
-	"github.com/Halleck45/conventional/internal/gitx"
+	"github.com/Halleck45/git-guess/internal/diff"
+	"github.com/Halleck45/git-guess/internal/gitx"
 )
 
 // containerDirs are directories whose children are natural scopes.

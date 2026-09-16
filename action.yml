@@ -1,4 +1,4 @@
-name: "conventional"
+name: "git guess"
 description: "Guess the Conventional Commits type of a pull request from its diff, label it, and lint its commits"
 author: "Jean-François Lépine"
 branding:
@@ -6,7 +6,7 @@ branding:
   color: "purple"
 inputs:
   version:
-    description: "conventional release to use (e.g. v0.2.0), or latest"
+    description: "git-guess release to use (e.g. v0.2.0), or latest"
     default: "latest"
   token:
     description: "GitHub token used to label and comment"
@@ -27,7 +27,7 @@ inputs:
     description: "Post (and update) a comment with the guess and its alternatives (true/false)"
     default: "false"
   check-commits:
-    description: "Lint the pull request commits with `conventional check --github` (true/false)"
+    description: "Lint the pull request commits with `git-guess check --github` (true/false)"
     default: "true"
   strict:
     description: "Fail the check when a declared type is disputed by the diff (true/false)"
@@ -48,7 +48,7 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Install conventional
+    - name: Install git-guess
       shell: bash
       env:
         VERSION: ${{ inputs.version }}
@@ -58,12 +58,12 @@ runs:
         os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m)
         case "$arch" in x86_64) arch=amd64;; aarch64|arm64) arch=arm64;; esac
         if [ "$VERSION" = "latest" ]; then
-          VERSION=$(gh release view --repo Halleck45/conventional --json tagName -q .tagName)
+          VERSION=$(gh release view --repo Halleck45/git-guess --json tagName -q .tagName)
         fi
-        url="https://github.com/Halleck45/conventional/releases/download/${VERSION}/conventional_${VERSION#v}_${os}_${arch}.tar.gz"
-        mkdir -p "$RUNNER_TEMP/conventional"
-        curl -sSL "$url" | tar -xz -C "$RUNNER_TEMP/conventional"
-        echo "$RUNNER_TEMP/conventional" >> "$GITHUB_PATH"
+        url="https://github.com/Halleck45/git-guess/releases/download/${VERSION}/git-guess_${VERSION#v}_${os}_${arch}.tar.gz"
+        mkdir -p "$RUNNER_TEMP/git-guess"
+        curl -sSL "$url" | tar -xz -C "$RUNNER_TEMP/git-guess"
+        echo "$RUNNER_TEMP/git-guess" >> "$GITHUB_PATH"
     - name: Fetch base branch
       if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
       shell: bash
@@ -76,7 +76,7 @@ runs:
       run: |
         set -euo pipefail
         base="origin/${{ github.base_ref }}"
-        json=$(conventional "${base}..HEAD" --json --no-color)
+        json=$(git-guess "${base}..HEAD" --json --no-color)
         echo "$json"
         for k in type scope confidence header; do
           echo "$k=$(echo "$json" | python3 -c "import json,sys; print(json.load(sys.stdin).get('$k',''))")" >> "$GITHUB_OUTPUT"
@@ -101,7 +101,7 @@ runs:
             k="${p%%=*}"; v="${p#*=}"
             [ "$k" = "$TYPE" ] && label="$v"
           done
-          gh label create "$label" --force --color "6f42c1" --description "Guessed by conventional" >/dev/null 2>&1 || true
+          gh label create "$label" --force --color "6f42c1" --description "Guessed by git guess" >/dev/null 2>&1 || true
           # remove labels of other types previously set by this action, keep everything else
           current=$(gh pr view "$PR" --json labels -q '.labels[].name')
           for p in "${pairs[@]}" feat fix docs style refactor perf test build ci chore revert; do
@@ -121,15 +121,15 @@ runs:
         PR: ${{ github.event.pull_request.number }}
       run: |
         set -euo pipefail
-        body=$(conventional "origin/${{ github.base_ref }}..HEAD" --json --no-color | python3 -c '
+        body=$(git-guess "origin/${{ github.base_ref }}..HEAD" --json --no-color | python3 -c '
         import json,sys
         r=json.load(sys.stdin)
         alts=", ".join(f"{c[\"type\"]} {c[\"p\"]*100:.0f}%" for c in r["candidates"][1:3])
-        print("<!-- conventional -->")
+        print("<!-- git-guess -->")
         print(f"**{r[\"header\"].rstrip(\":\")}** ({r[\"confidence\"]*100:.0f}%, also {alts})")
         print()
-        print(f"<sub>{r[\"files\"]} files, +{r[\"added\"]} −{r[\"removed\"]}. Guessed from the diff by [conventional](https://github.com/Halleck45/conventional).</sub>")')
-        existing=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" -q '.[] | select(.body | startswith("<!-- conventional -->")) | .id' | head -1)
+        print(f"<sub>{r[\"files\"]} files, +{r[\"added\"]} −{r[\"removed\"]}. Guessed from the diff by [git guess](https://github.com/Halleck45/git-guess).</sub>")')
+        existing=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" -q '.[] | select(.body | startswith("<!-- git-guess -->")) | .id' | head -1)
         if [ -n "$existing" ]; then
           gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$existing" -f body="$body" >/dev/null
         else
@@ -142,4 +142,4 @@ runs:
         set -euo pipefail
         args="--github --no-color"
         [ "${{ inputs.strict }}" = "true" ] && args="$args --strict"
-        conventional check "origin/${{ github.base_ref }}..HEAD" $args
+        git-guess check "origin/${{ github.base_ref }}..HEAD" $args

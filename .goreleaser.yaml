@@ -1,15 +1,15 @@
 version: 2
 
-project_name: conventional
+project_name: git-guess
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: conventional
-    main: ./cmd/conventional
-    binary: conventional
+  - id: git-guess
+    main: ./cmd/git-guess
+    binary: git-guess
     env:
       - CGO_ENABLED=0
     goos:
@@ -59,16 +59,16 @@ changelog:
       - '^ci(\([[:word:]]+\))??!?:'
 
 homebrew_casks:
-  - name: conventional
+  - name: git-guess
     repository:
       owner: Halleck45
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Casks
-    homepage: https://github.com/Halleck45/conventional
+    homepage: https://github.com/Halleck45/git-guess
     description: Guess the Conventional Commits type of a change from its diff
     license: MIT
-    binary: conventional
+    binary: git-guess
     commit_author:
       name: goreleaser
       email: bot@goreleaser.com
@@ -76,6 +76,6 @@ homebrew_casks:
 release:
   github:
     owner: Halleck45
-    name: conventional
+    name: git-guess
   draft: false
   prerelease: auto

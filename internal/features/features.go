@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/diff"
+	"github.com/Halleck45/git-guess/internal/diff"
 )
 
 // Version of the feature contract. Stored in the model file and checked at

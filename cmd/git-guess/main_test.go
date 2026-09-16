@@ -115,7 +115,7 @@ func TestHookRun(t *testing.T) {
 	os.WriteFile(msg, []byte("\n# Please enter the commit message\n"), 0o644)
 	hookRun([]string{msg, ""}, &bytes.Buffer{})
 	b, _ = os.ReadFile(msg)
-	if !strings.HasPrefix(string(b), "docs: \n") || !strings.Contains(string(b), "# conventional: docs") {
+	if !strings.HasPrefix(string(b), "docs: \n") || !strings.Contains(string(b), "# git guess: docs") {
 		t.Errorf("hook template: %q", b)
 	}
 	// merge: untouched

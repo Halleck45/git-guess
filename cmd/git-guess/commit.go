@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/gitx"
-	"github.com/Halleck45/conventional/internal/model"
+	"github.com/Halleck45/git-guess/internal/gitx"
+	"github.com/Halleck45/git-guess/internal/model"
 )
 
 // runCommit wraps `git commit`. A -m subject gets the header prefilled;
@@ -42,14 +42,14 @@ func runCommit(args []string, opts classifyOptions, stdin *os.File, stdout, stde
 		fmt.Fprintln(stderr, header)
 		return execGit(append([]string{"commit", "-m", header}, rest...), stdin, stdout, stderr)
 	}
-	tmp, err := os.CreateTemp("", "conventional-*.txt")
+	tmp, err := os.CreateTemp("", "git-guess-*.txt")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmp.Name())
 	fmt.Fprintf(tmp, "%s \n", res.formatHeader(""))
 	if ch, strip := gitx.CommentChar(); strip {
-		fmt.Fprintf(tmp, "%s conventional guessed %s (%s)", ch, res.Type, percent(res.Confidence))
+		fmt.Fprintf(tmp, "%s git guess: %s (%s)", ch, res.Type, percent(res.Confidence))
 		if len(res.Candidates) > 1 {
 			fmt.Fprintf(tmp, ", also %s (%s)", res.Candidates[1].Type, percent(res.Candidates[1].P))
 		}

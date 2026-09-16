@@ -3,7 +3,7 @@ package features
 import (
 	"testing"
 
-	"github.com/Halleck45/conventional/internal/diff"
+	"github.com/Halleck45/git-guess/internal/diff"
 )
 
 const sample = `diff --git a/src/auth/login.ts b/src/auth/login.ts

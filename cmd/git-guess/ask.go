@@ -15,7 +15,7 @@ const askThreshold = 0.55
 // uncertain. It reads from /dev/tty so it also works inside git hooks. Any
 // failure (no terminal, CI, empty answer) keeps the guess.
 func maybeAsk(res *Result, stderr *os.File) {
-	if res.Confidence >= askThreshold || len(res.Candidates) < 2 || os.Getenv("CONVENTIONAL_ASK") == "0" || os.Getenv("CI") != "" {
+	if res.Confidence >= askThreshold || len(res.Candidates) < 2 || os.Getenv("GIT_GUESS_ASK") == "0" || os.Getenv("CI") != "" {
 		return
 	}
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)

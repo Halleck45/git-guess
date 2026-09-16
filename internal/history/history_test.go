@@ -4,9 +4,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Halleck45/conventional/internal/diff"
-	"github.com/Halleck45/conventional/internal/features"
-	"github.com/Halleck45/conventional/internal/model"
+	"github.com/Halleck45/git-guess/internal/diff"
+	"github.com/Halleck45/git-guess/internal/features"
+	"github.com/Halleck45/git-guess/internal/model"
 )
 
 func TestNormalizeDot(t *testing.T) {

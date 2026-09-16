@@ -21,10 +21,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/diff"
-	"github.com/Halleck45/conventional/internal/features"
-	"github.com/Halleck45/conventional/internal/gitx"
-	"github.com/Halleck45/conventional/internal/model"
+	"github.com/Halleck45/git-guess/internal/diff"
+	"github.com/Halleck45/git-guess/internal/features"
+	"github.com/Halleck45/git-guess/internal/gitx"
+	"github.com/Halleck45/git-guess/internal/model"
 )
 
 // Window is the number of recent conventional commits kept in the index.
@@ -64,7 +64,7 @@ func cachePath() (string, error) {
 		return "", err
 	}
 	dir := strings.TrimSpace(string(out))
-	return filepath.Join(dir, "conventional", "history.bin"), nil
+	return filepath.Join(dir, "git-guess", "history.bin"), nil
 }
 
 func loadCache(p string) *Index {

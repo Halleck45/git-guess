@@ -1,4 +1,5 @@
 data/
 dist/
 *.test
+/git-guess
 /conventional

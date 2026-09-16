@@ -8,21 +8,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/gitx"
-	"github.com/Halleck45/conventional/internal/model"
+	"github.com/Halleck45/git-guess/internal/gitx"
+	"github.com/Halleck45/git-guess/internal/model"
 )
 
-const hookMarker = "# managed by conventional"
+const hookMarker = "# managed by git-guess"
 
 const hookScript = `#!/bin/sh
-` + hookMarker + ` — https://github.com/Halleck45/conventional
+` + hookMarker + ` — https://github.com/Halleck45/git-guess
 command -v conventional >/dev/null 2>&1 || exit 0
 exec conventional hook run "$@"
 `
 
 func runHook(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: conventional hook install|uninstall|run")
+		return fmt.Errorf("usage: git guess hook install|uninstall|run")
 	}
 	switch args[0] {
 	case "install":
@@ -58,7 +58,7 @@ func hookInstall(args []string, stdout io.Writer) error {
 			return nil
 		}
 		if !force {
-			return fmt.Errorf("%s already exists and is not ours.\nAdd this line to it:\n\n    conventional hook run \"$@\"\n\nor re-run with --force to replace it", p)
+			return fmt.Errorf("%s already exists and is not ours.\nAdd this line to it:\n\n    git-guess hook run \"$@\"\n\nor re-run with --force to replace it", p)
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -71,7 +71,7 @@ func hookInstall(args []string, stdout io.Writer) error {
 	if custom {
 		fmt.Fprintln(stdout, "note: core.hooksPath is set, the hook was written there")
 	}
-	fmt.Fprintln(stdout, "git commit -m \"add login\" now becomes \"feat: add login\" (uninstall with: conventional hook uninstall)")
+	fmt.Fprintln(stdout, "git commit -m \"add login\" now becomes \"feat: add login\" (uninstall with: git guess hook uninstall)")
 	return nil
 }
 
@@ -86,7 +86,7 @@ func hookUninstall(stdout io.Writer) error {
 		return nil
 	}
 	if !strings.Contains(string(b), hookMarker) {
-		return fmt.Errorf("%s is not managed by conventional, leaving it alone", p)
+		return fmt.Errorf("%s is not managed by git-guess, leaving it alone", p)
 	}
 	if err := os.Remove(p); err != nil {
 		return err
@@ -121,7 +121,7 @@ func hookRun(args []string, stderr io.Writer) error {
 	if len(args) > 2 && args[2] != "" {
 		return nil // amend: the staged delta is not the whole change
 	}
-	if os.Getenv("CONVENTIONAL_HOOK") == "0" {
+	if os.Getenv("GIT_GUESS_HOOK") == "0" {
 		return nil
 	}
 	content := string(b)
@@ -154,7 +154,7 @@ func hookRun(args []string, stderr io.Writer) error {
 		out = res.formatHeader("") + " \n" + strings.TrimPrefix(content, "\n")
 		if strip {
 			// Add a comment so the user sees the alternatives.
-			out += fmt.Sprintf("%s\n%s conventional: %s (%s)", ch, ch, res.Type, percent(res.Confidence))
+			out += fmt.Sprintf("%s\n%s git guess: %s (%s)", ch, ch, res.Type, percent(res.Confidence))
 			if len(res.Candidates) > 1 {
 				out += fmt.Sprintf(", or %s (%s)", res.Candidates[1].Type, percent(res.Candidates[1].P))
 			}
@@ -164,10 +164,10 @@ func hookRun(args []string, stderr io.Writer) error {
 		lines := strings.Split(content, "\n")
 		lines[firstIdx] = res.formatHeader(first)
 		out = strings.Join(lines, "\n")
-		fmt.Fprintln(stderr, "conventional:", res.formatHeader(first))
+		fmt.Fprintln(stderr, "git guess:", res.formatHeader(first))
 	}
 	if err := os.WriteFile(file, []byte(out), 0o644); err != nil {
-		fmt.Fprintln(stderr, "conventional: could not update the message:", err)
+		fmt.Fprintln(stderr, "git-guess: could not update the message:", err)
 	}
 	return nil // never block a commit
 }

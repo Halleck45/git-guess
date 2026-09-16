@@ -7,12 +7,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/diff"
-	"github.com/Halleck45/conventional/internal/features"
-	"github.com/Halleck45/conventional/internal/gitx"
-	"github.com/Halleck45/conventional/internal/history"
-	"github.com/Halleck45/conventional/internal/model"
-	"github.com/Halleck45/conventional/internal/scope"
+	"github.com/Halleck45/git-guess/internal/diff"
+	"github.com/Halleck45/git-guess/internal/features"
+	"github.com/Halleck45/git-guess/internal/gitx"
+	"github.com/Halleck45/git-guess/internal/history"
+	"github.com/Halleck45/git-guess/internal/model"
+	"github.com/Halleck45/git-guess/internal/scope"
 )
 
 // Result of a classification.

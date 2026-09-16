@@ -20,7 +20,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/Halleck45/conventional/internal/features"
+	"github.com/Halleck45/git-guess/internal/features"
 )
 
 // Model is a linear multinomial classifier over the feature space.
