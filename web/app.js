@@ -130,7 +130,7 @@ diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
     ['<span class="t-dim">$ </span>git guess'],
     ['<span class="t-ok">✔</span> <span class="t-b">feat(auth)</span>  <span class="t-dim">████████░░</span> <span class="t-ok">82%</span>', 0],
     ['<span class="t-dim">  also:</span> fix <span class="t-dim">11% ·</span> refactor <span class="t-dim">5%</span>', 0],
-    ['<span class="t-dim">  3 files, +48 −6, staged, learned from 1000 commits of this repo</span>', 0],
+    ['<span class="t-dim">  3 files, +48 −6, learned from 1000 commits of this repo</span>', 0],
     [''],
     ['<span class="t-dim">$ </span>git commit -m "add login with magic links"'],
     ['<span class="t-acc">git guess:</span> feat(auth): add login with magic links', 0],
@@ -179,7 +179,7 @@ diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
   function run() {
     if (!ready) return;
     const text = ta.value;
-    if (!text.trim()) { result.innerHTML = '<p class="empty">Paste the output of <code>git diff</code>, <code>git show</code> or a .patch file.</p>'; return; }
+    if (!text.trim()) { result.innerHTML = '<p class="empty">Paste the output of <code>git diff</code> or <code>git show</code>, or pick an example above.</p>'; return; }
     let r;
     try { r = JSON.parse(gitGuess(text)); } catch (e) { r = { error: String(e) }; }
     if (r.error) { result.innerHTML = '<p class="r-err">' + esc(r.error) + '</p>'; return; }
@@ -188,7 +188,7 @@ diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
     const alts = r.candidates.slice(1).filter((c) => c.p >= 0.01).map((c) => '<span><b>' + esc(c.type) + '</b> ' + Math.round(c.p * 100) + '%</span>').join('');
     const why = (list, cls) => list.map((c) => '<li class="' + cls + '"><span>' + esc(c.feature) + '</span><span>' + (c.weight >= 0 ? '+' : '') + c.weight.toFixed(2) + '</span></li>').join('');
     result.innerHTML =
-      '<div class="r-head"><span class="r-type">' + esc(r.header.replace(/:$/, '')) + '</span><span class="r-conf' + (low ? ' low' : '') + '">' + pct + '%</span>' + (low ? '<span class="r-conf low">not sure, would ask</span>' : '') + '</div>' +
+      '<div class="r-head"><span class="r-type">' + esc(r.header.replace(/:$/, '')) + '</span><span class="r-conf' + (low ? ' low' : '') + '">' + pct + '%</span>' + (low ? '<span class="r-conf low">would ask you</span>' : '') + '</div>' +
       '<div class="r-bar"><i style="width:' + pct + '%"></i></div>' +
       '<div class="r-alts"><span class="t-dim">also:</span>' + alts + '</div>' +
       '<div class="r-meta">' + r.files + ' file' + (r.files === 1 ? '' : 's') + ', +' + r.added + ' −' + r.removed + '</div>' +
