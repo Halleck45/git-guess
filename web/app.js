@@ -21,11 +21,11 @@ new file mode 100644
 +  if (options.header !== false) {
 +    rows.unshift(report.columns.join(sep));
 +  }
-+  return rows.join("\n");
++  return rows.join("\\n");
 +}
 +
 +function escape(v: string) {
-+  return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
++  return /[",\\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 +}
 diff --git a/src/export/index.ts b/src/export/index.ts
 --- a/src/export/index.ts
