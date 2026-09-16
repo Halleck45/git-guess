@@ -189,8 +189,7 @@ diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
     result.innerHTML =
       '<div class="r-head"><span class="r-type">' + esc(r.header.replace(/:$/, '')) + '</span><span class="r-conf' + (low ? ' low' : '') + '">' + pct + '%</span>' + (low ? '<span class="r-conf low">would ask you</span>' : '') + '</div>' +
       '<div class="r-bar"><i style="width:' + pct + '%"></i></div>' +
-      '<div class="r-alts"><span class="t-dim">also:</span>' + alts + '</div>' +
-      '<div class="r-meta">' + r.files + ' file' + (r.files === 1 ? '' : 's') + ', +' + r.added + ' −' + r.removed + '</div>';
+      '<div class="r-alts"><span class="t-dim">also:</span>' + alts + '</div>';
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 

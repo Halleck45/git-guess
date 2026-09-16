@@ -66,7 +66,6 @@ textarea:focus { border-color: var(--ink); }
 .r-bar i { display: block; height: 100%; background: var(--ink); border-radius: 999px; transition: width .35s ease; }
 .r-alts { display: flex; flex-wrap: wrap; gap: .3rem 1rem; color: var(--muted); font-size: .95rem; }
 .r-alts b { color: var(--ink); font-weight: 600; font-family: var(--mono); font-size: .9rem; }
-.r-meta { color: var(--muted); font-size: .85rem; margin: .7rem 0 0; }
 .r-err { color: var(--warn); }
 .note { color: var(--muted); font-size: .92rem; margin-top: 1.2rem; max-width: 46rem; }
 
