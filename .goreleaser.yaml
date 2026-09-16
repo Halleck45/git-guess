@@ -23,15 +23,11 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
+  # raw binaries, no tarball: the release page lists git-guess_linux_amd64,
+  # git-guess_darwin_arm64, git-guess_windows_amd64.exe, ... plus checksums.txt
   - id: default
-    formats: [tar.gz]
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        formats: [zip]
-    files:
-      - LICENSE
-      - README.md
+    formats: [binary]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt

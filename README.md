@@ -32,10 +32,14 @@ curl -fsSL https://raw.githubusercontent.com/Halleck45/git-guess/main/install.sh
 ```
 
 ```sh
+npx git-guess                   # or: npm install -g git-guess
+```
+
+```sh
 go install github.com/Halleck45/git-guess/cmd/git-guess@latest
 ```
 
-Prebuilt binaries for Linux, macOS and Windows (amd64, arm64) are on the [releases page](https://github.com/Halleck45/git-guess/releases). The binary is called `git-guess`, which is why `git guess` just works.
+Or grab the binary for Linux, macOS or Windows (amd64, arm64) from the [releases page](https://github.com/Halleck45/git-guess/releases) and put it on your `PATH`. It is called `git-guess`, which is why `git guess` just works.
 
 ## Sixty seconds
 

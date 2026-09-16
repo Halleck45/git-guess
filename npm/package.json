@@ -1,0 +1,17 @@
+{
+  "name": "git-guess",
+  "version": "0.0.0",
+  "description": "feat or fix? Let git guess. Reads the diff and writes the Conventional Commits type.",
+  "license": "MIT",
+  "author": "Jean-François Lépine",
+  "homepage": "https://halleck45.github.io/git-guess/",
+  "repository": { "type": "git", "url": "git+https://github.com/Halleck45/git-guess.git" },
+  "bugs": "https://github.com/Halleck45/git-guess/issues",
+  "keywords": ["git", "conventional-commits", "commit-message", "git-hook", "cli"],
+  "bin": { "git-guess": "bin/git-guess.js" },
+  "files": ["bin", "lib", "README.md"],
+  "scripts": { "postinstall": "node lib/postinstall.js" },
+  "engines": { "node": ">=18" },
+  "os": ["linux", "darwin", "win32"],
+  "cpu": ["x64", "arm64"]
+}

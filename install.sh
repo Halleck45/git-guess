@@ -1,6 +1,7 @@
 #!/bin/sh
 # Installs the latest git-guess release into /usr/local/bin (or $BIN_DIR).
 #   curl -fsSL https://raw.githubusercontent.com/Halleck45/git-guess/main/install.sh | sh
+# Pin a version with VERSION=v0.2.0.
 set -eu
 REPO="Halleck45/git-guess"
 BIN_DIR="${BIN_DIR:-/usr/local/bin}"
@@ -11,13 +12,24 @@ case "$arch" in
   aarch64|arm64) arch=arm64 ;;
   *) echo "unsupported architecture: $arch" >&2; exit 1 ;;
 esac
-version="${VERSION:-$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')}"
-[ -n "$version" ] || { echo "could not determine the latest version" >&2; exit 1; }
-url="https://github.com/$REPO/releases/download/$version/git-guess_${version#v}_${os}_${arch}.tar.gz"
+case "$os" in
+  linux|darwin) ;;
+  *) echo "unsupported OS: $os (on Windows, download git-guess_windows_${arch}.exe from https://github.com/$REPO/releases)" >&2; exit 1 ;;
+esac
+name="git-guess_${os}_${arch}"
+if [ -n "${VERSION:-}" ]; then
+  base="https://github.com/$REPO/releases/download/$VERSION"
+else
+  base="https://github.com/$REPO/releases/latest/download"
+fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-echo "downloading git-guess $version for $os/$arch"
-curl -fsSL "$url" | tar -xz -C "$tmp"
+echo "downloading git-guess ${VERSION:-latest} for $os/$arch"
+curl -fsSL -o "$tmp/git-guess" "$base/$name"
+curl -fsSL -o "$tmp/checksums.txt" "$base/checksums.txt"
+want=$(grep " $name\$" "$tmp/checksums.txt" | cut -d' ' -f1)
+if command -v sha256sum >/dev/null 2>&1; then got=$(sha256sum "$tmp/git-guess" | cut -d' ' -f1); else got=$(shasum -a 256 "$tmp/git-guess" | cut -d' ' -f1); fi
+[ "$want" = "$got" ] || { echo "checksum mismatch for $name" >&2; exit 1; }
 if [ -w "$BIN_DIR" ]; then
   install -m 755 "$tmp/git-guess" "$BIN_DIR/git-guess"
 else
