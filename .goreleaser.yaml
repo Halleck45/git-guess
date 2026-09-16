@@ -63,8 +63,10 @@ homebrew_casks:
     repository:
       owner: Halleck45
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: '{{ envOrDefault "HOMEBREW_TAP_GITHUB_TOKEN" "" }}'
     directory: Casks
+    # publish to the tap only when its token is configured
+    skip_upload: '{{ if eq (envOrDefault "HOMEBREW_TAP_GITHUB_TOKEN" "") "" }}true{{ else }}false{{ end }}'
     homepage: https://github.com/Halleck45/git-guess
     description: Guess the Conventional Commits type of a change from its diff
     license: MIT

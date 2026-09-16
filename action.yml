@@ -60,9 +60,9 @@ runs:
         if [ "$VERSION" = "latest" ]; then
           VERSION=$(gh release view --repo Halleck45/git-guess --json tagName -q .tagName)
         fi
-        url="https://github.com/Halleck45/git-guess/releases/download/${VERSION}/git-guess_${VERSION#v}_${os}_${arch}.tar.gz"
         mkdir -p "$RUNNER_TEMP/git-guess"
-        curl -sSL "$url" | tar -xz -C "$RUNNER_TEMP/git-guess"
+        # gh downloads from private repositories too
+        gh release download "$VERSION" --repo Halleck45/git-guess --pattern "git-guess_*_${os}_${arch}.tar.gz" -O - | tar -xz -C "$RUNNER_TEMP/git-guess"
         echo "$RUNNER_TEMP/git-guess" >> "$GITHUB_PATH"
     - name: Fetch base branch
       if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
