@@ -46,6 +46,8 @@ func runCheck(args []string, stdout, stderr io.Writer, st style) error {
 			asJSON = true
 		case a == "--github":
 			gh = true
+		case a == "--no-color":
+			st.color = false
 		case a == "--min-confidence":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--min-confidence needs a value")

@@ -28,3 +28,7 @@
 | labels pull requests | yes | no | no | no |
 
 They compose: commitizen for the interactive flow, commitlint for enforcement, `git guess` to fill in the type.
+
+## Changelog
+
+Releases are on the [releases page](https://github.com/Halleck45/git-guess/releases).
