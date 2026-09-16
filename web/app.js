@@ -130,11 +130,11 @@ diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
     ['<span class="t-dim">$ </span>git guess'],
     ['<span class="t-ok">✔</span> <span class="t-b">feat(auth)</span>  <span class="t-dim">████████░░</span> <span class="t-ok">82%</span>', 0],
     ['<span class="t-dim">  also:</span> fix <span class="t-dim">11% ·</span> refactor <span class="t-dim">5%</span>', 0],
-    ['<span class="t-dim">  3 files, +48 −6, learned from 1000 commits of this repo</span>', 0],
+    ['<span class="t-dim">  3 files, +48 −6, learned from 1000 commits</span>', 0],
     [''],
-    ['<span class="t-dim">$ </span>git commit -m "add login with magic links"'],
-    ['<span class="t-acc">git guess:</span> feat(auth): add login with magic links', 0],
-    ['<span class="t-dim">[main 3f2a1c0] feat(auth): add login with magic links</span>', 0],
+    ['<span class="t-dim">$ </span>git commit -m "add magic links"'],
+    ['<span class="t-acc">git guess:</span> feat(auth): add magic links', 0],
+    ['<span class="t-dim">[main 3f2a1c0] feat(auth): add magic links</span>', 0],
   ];
   const demo = $('#demo');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -186,13 +186,11 @@ diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
     const pct = Math.min(99, Math.round(r.confidence * 100));
     const low = r.confidence < 0.55;
     const alts = r.candidates.slice(1).filter((c) => c.p >= 0.01).map((c) => '<span><b>' + esc(c.type) + '</b> ' + Math.round(c.p * 100) + '%</span>').join('');
-    const why = (list, cls) => list.map((c) => '<li class="' + cls + '"><span>' + esc(c.feature) + '</span><span>' + (c.weight >= 0 ? '+' : '') + c.weight.toFixed(2) + '</span></li>').join('');
     result.innerHTML =
       '<div class="r-head"><span class="r-type">' + esc(r.header.replace(/:$/, '')) + '</span><span class="r-conf' + (low ? ' low' : '') + '">' + pct + '%</span>' + (low ? '<span class="r-conf low">would ask you</span>' : '') + '</div>' +
       '<div class="r-bar"><i style="width:' + pct + '%"></i></div>' +
       '<div class="r-alts"><span class="t-dim">also:</span>' + alts + '</div>' +
-      '<div class="r-meta">' + r.files + ' file' + (r.files === 1 ? '' : 's') + ', +' + r.added + ' −' + r.removed + '</div>' +
-      (r.against ? '<div class="r-why"><h4>why ' + esc(r.type) + ' rather than ' + esc(r.against) + '</h4><ul>' + why(r.for || [], 'plus') + why((r.contra || []).slice(0, 3), 'minus') + '</ul></div>' : '');
+      '<div class="r-meta">' + r.files + ' file' + (r.files === 1 ? '' : 's') + ', +' + r.added + ' −' + r.removed + '</div>';
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 

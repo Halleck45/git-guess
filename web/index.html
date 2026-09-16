@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>git guess · never argue about feat vs fix again</title>
-<meta name="description" content="git guess reads your diff and writes the Conventional Commits type for you. It learns your repository's habits, labels your pull requests, and asks when it is not sure. One binary, nothing leaves your machine. Try it on your last commit, right here.">
-<meta property="og:title" content="git guess · never argue about feat vs fix again">
+<title>git guess · feat or fix? Let git guess.</title>
+<meta name="description" content="git guess reads the diff and writes the Conventional Commits type, the way your repository would. One binary, no API key, nothing leaves your machine. Try it in your browser.">
+<meta property="og:title" content="git guess · feat or fix? Let git guess.">
 <meta property="og:description" content="Reads the diff, writes the Conventional Commits type, learns your repository. Try it in your browser.">
 <meta property="og:image" content="https://halleck45.github.io/git-guess/demo.svg">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -18,98 +18,84 @@
 <header class="top">
   <a class="brand" href="#">git guess</a>
   <nav>
-    <a href="#try">Try it</a>
     <a href="#install">Install</a>
+    <a href="#try">Try it</a>
     <a href="https://github.com/Halleck45/git-guess/tree/main/docs">Docs</a>
     <a href="https://github.com/Halleck45/git-guess">GitHub</a>
   </nav>
 </header>
 
-<section class="hero">
+<section class="hero" id="install">
   <div class="hero-copy">
-    <p class="eyebrow">For everyone who writes Conventional Commits</p>
-    <h1>Never argue about <span class="nowrap">feat vs fix</span> again.</h1>
-    <p class="lead">You write the subject. <strong>git guess</strong> reads the diff and writes the type, the way <em>your</em> project would have written it. One 7&nbsp;MB binary, no account, no API key, and nothing ever leaves your machine.</p>
-    <p class="cta"><a class="btn primary" href="#try">Try it on your last commit</a><a class="btn" href="#install">Install in one line</a></p>
+    <h1>feat or fix?<br>Let git guess.</h1>
+    <p class="lead">It reads the diff and writes the Conventional Commits type, the way your repository would. One binary, no API key, nothing leaves your machine.</p>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="brew">Homebrew</button>
+      <button role="tab" data-tab="curl">curl</button>
+      <button role="tab" data-tab="go">Go</button>
+    </div>
+    <div class="panes">
+      <pre data-pane="brew" class="active"><code>brew install Halleck45/tap/git-guess</code><button class="copy" aria-label="Copy">Copy</button></pre>
+      <pre data-pane="curl"><code>curl -fsSL https://raw.githubusercontent.com/Halleck45/git-guess/main/install.sh | sh</code><button class="copy" aria-label="Copy">Copy</button></pre>
+      <pre data-pane="go"><code>go install github.com/Halleck45/git-guess/cmd/git-guess@latest</code><button class="copy" aria-label="Copy">Copy</button></pre>
+    </div>
+    <p class="after">Linux, macOS, Windows. <a href="https://github.com/Halleck45/git-guess/releases">Binaries</a> if you prefer. Or <a href="#try">try it in your browser</a> first.</p>
   </div>
   <div class="terminal" aria-label="Terminal demo">
-    <div class="bar"><i></i><i></i><i></i></div>
+    <div class="bar"><i></i><i></i><i></i><span>~/app</span></div>
     <pre id="demo"></pre>
   </div>
 </section>
 
+<section class="daily">
+  <pre><code><span class="t-dim">$</span> git guess                  <span class="t-dim"># type for the staged changes</span>
+<span class="t-dim">$</span> git guess -m "add login"   <span class="t-dim"># feat(auth): add login</span>
+<span class="t-dim">$</span> git guess eval             <span class="t-dim"># score it on your own history</span>
+<span class="t-dim">$</span> git guess hook install     <span class="t-dim"># git commit -m "add login" becomes feat(auth): add login</span></code></pre>
+</section>
+
 <section id="try" class="play">
   <div class="play-head">
-    <h2>Try it on your last commit.</h2>
-    <p>Run <code>git show | pbcopy</code> (or <code>git diff | xclip</code>) and paste. The model runs in your browser; your diff stays on this page. Or pick one of ours:</p>
+    <h2>Try it on a diff.</h2>
+    <p>Paste <code>git show</code> or <code>git diff</code>. The model runs in your browser. Or pick one:</p>
     <div class="examples" role="group" aria-label="Examples">
-      <button data-example="feat">a feature</button>
-      <button data-example="fix">a bug fix</button>
+      <button data-example="feat">feature</button>
+      <button data-example="fix">bug fix</button>
       <button data-example="docs">docs</button>
       <button data-example="test">tests</button>
-      <button data-example="deps">a dependency bump</button>
+      <button data-example="deps">dependency bump</button>
     </div>
   </div>
   <div class="play-grid">
     <textarea id="diff" spellcheck="false" aria-label="Unified diff"></textarea>
-    <div class="result" id="result"><div class="loading" id="loading">Loading the model, once…</div></div>
+    <div class="result" id="result"><div class="loading" id="loading">Loading the model…</div></div>
   </div>
-  <p class="note">What you see here is the model alone. Installed, it also reads your repository's history, which is where most of the accuracy comes from.</p>
+  <p class="note">This is the model alone. Installed, it also reads your repository's history, which is where most of the accuracy comes from.</p>
 </section>
 
 <section class="benefits">
   <article>
-    <h2>Your changelog stops lying.</h2>
-    <p>Release notes, semantic versions and “what changed” summaries are only as good as the types behind them. When every commit carries the right one, the tooling you already have finally tells the truth. No more <code>fix</code> that was really a feature, no more <code>chore</code> hiding a breaking change.</p>
+    <h2>It speaks your dialect.</h2>
+    <p>Some teams say <code>chore</code> for CI, others say <code>ci</code>. git guess indexes your last thousand commits and looks at how you named the closest changes. It suggests your convention, not a generic one.</p>
   </article>
   <article>
-    <h2>It speaks your repository's dialect.</h2>
-    <p>Some teams say <code>chore</code> for CI changes, others say <code>ci</code>. Some bump dependencies as <code>build</code>, others as <code>chore</code>. git guess indexes your last thousand commits and looks at how <em>you</em> named the changes closest to this one, which files they touched, and what you tend to call what. It suggests your convention, not somebody else's.</p>
+    <h2>It asks when unsure.</h2>
+    <p>Above 90% confidence it is right 96% of the time. Below 55% it asks, once, in one keystroke. The hook never blocks a commit.</p>
+    <pre><code>? fix 41% or refactor 38%? [f/r]</code></pre>
   </article>
   <article>
-    <h2>Pull requests labeled before anyone reads them.</h2>
-    <p>One line in a workflow and every pull request gets <code>enhancement</code>, <code>bug</code> or <code>documentation</code> from its diff, plus a note on any commit whose declared type the code contradicts. Reviewers open the PR already knowing what kind of change it is.</p>
+    <h2>Pull requests labeled from the diff.</h2>
+    <p>One line in a workflow. Every PR gets <code>enhancement</code>, <code>bug</code> or <code>documentation</code>, and a note when a commit's declared type contradicts its code.</p>
     <pre><code>- uses: Halleck45/git-guess@v1</code><button class="copy" aria-label="Copy">Copy</button></pre>
-  </article>
-  <article>
-    <h2>It admits when it doesn't know.</h2>
-    <p>Whether a three-line patch is a fix or a refactor is a question of intent, and the diff does not carry intent. So git guess keeps a calibrated confidence: above 90% it is right 96% of the time. Below 55% it asks, once, in one keystroke, instead of guessing silently.</p>
-    <pre><code>? fix 41% or refactor 38%? [f/r, Enter keeps fix]</code></pre>
   </article>
 </section>
 
 <section class="numbers">
-  <p><b>70%</b> right on the first try and <b>88%</b> within two, measured on 36 projects it had never seen, each commit scored with only the commits before it. Trained on 488,000 commits from 244 open-source projects. Your project's number is one command away: <code>git guess eval</code>.</p>
-</section>
-
-<section id="install" class="install">
-  <h2>Install in one line.</h2>
-  <div class="tabs" role="tablist">
-    <button role="tab" aria-selected="true" data-tab="brew">Homebrew</button>
-    <button role="tab" data-tab="curl">curl</button>
-    <button role="tab" data-tab="go">Go</button>
-  </div>
-  <div class="panes">
-    <pre data-pane="brew" class="active"><code>brew install Halleck45/tap/git-guess</code><button class="copy" aria-label="Copy">Copy</button></pre>
-    <pre data-pane="curl"><code>curl -fsSL https://raw.githubusercontent.com/Halleck45/git-guess/main/install.sh | sh</code><button class="copy" aria-label="Copy">Copy</button></pre>
-    <pre data-pane="go"><code>go install github.com/Halleck45/git-guess/cmd/git-guess@latest</code><button class="copy" aria-label="Copy">Copy</button></pre>
-  </div>
-  <div class="then">
-    <div>
-      <h3>See what to expect on your project</h3>
-      <pre><code>git guess eval</code></pre>
-      <p>Replays your last 200 commits and scores itself against what you actually wrote.</p>
-    </div>
-    <div>
-      <h3>Then forget about it</h3>
-      <pre><code>git guess hook install</code></pre>
-      <p><code>git commit -m "add login"</code> becomes <code>feat(auth): add login</code>. A plain <code>git commit</code> opens your editor with the type already there. Uninstall in one command, skip once with <code>GIT_GUESS_HOOK=0</code>.</p>
-    </div>
-  </div>
+  <p><b>70%</b> right on the first try, <b>88%</b> within two, on 36 projects it had never seen. Trained on 488,000 commits from 244 open-source projects. Your own number: <code>git guess eval</code>.</p>
 </section>
 
 <footer>
-  <p>Free and open source, MIT. <a href="https://github.com/Halleck45/git-guess">Source</a>, <a href="https://github.com/Halleck45/git-guess/tree/main/docs">documentation</a>, <a href="https://github.com/Halleck45/git-guess/releases">releases</a>.<br>Made by <a href="https://github.com/Halleck45">Jean-François Lépine</a>, author of PhpMetrics.</p>
+  <p>Free and open source, MIT. <a href="https://github.com/Halleck45/git-guess">Source</a>, <a href="https://github.com/Halleck45/git-guess/tree/main/docs">documentation</a>, <a href="https://github.com/Halleck45/git-guess/releases">releases</a>.<br>Made by <a href="https://github.com/Halleck45">Jean-François Lépine</a>, author of <a href="https://phpmetrics.org">PhpMetrics</a> and <a href="https://github.com/Halleck45/ast-metrics">AST Metrics</a>.</p>
 </footer>
 
 <script src="wasm_exec.js"></script>
