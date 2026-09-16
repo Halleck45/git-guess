@@ -29,6 +29,8 @@ func runEval(args []string, stdout io.Writer, st style) error {
 				return err
 			}
 			n = v
+		case "--no-color":
+			st.color = false
 		default:
 			return fmt.Errorf("unknown eval flag %s", args[i])
 		}
