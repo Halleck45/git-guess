@@ -1,109 +1,116 @@
-# conventional
+<p align="center">
+  <img src="docs/demo.svg" width="680" alt="git guess in a terminal: it prints feat(auth) 82%, then git commit -m 'add login' becomes feat(auth): add login">
+</p>
 
-Guess the Conventional Commits type of a change from its diff. Pure Go, one binary, no network, about 10 ms per run.
+<h1 align="center">git guess</h1>
 
-```
-$ git add .
-$ conventional
-✔ feat(auth)  ████████░░ 82%
-  also: fix 11% · refactor 5%
-  3 files, +48 −6, staged, tuned to this repo's history
-```
+<p align="center"><b>feat or fix? Let git guess.</b><br>
+It reads the diff, learns how your repository names things, and writes the Conventional Commits type for you.<br>
+One binary. No API key. Nothing leaves your machine. About 30 ms.</p>
 
-You keep writing the subject. `conventional` writes the `feat(auth):` part. It learns your repository's habits first: the closest past diffs, what your project calls what, which files go with which type. It also runs in CI, where it labels pull requests and lints commit types against the diff.
+<p align="center">
+  <a href="https://github.com/Halleck45/git-guess/actions/workflows/ci.yml"><img src="https://github.com/Halleck45/git-guess/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Halleck45/git-guess/releases"><img src="https://img.shields.io/github/v/release/Halleck45/git-guess?color=6f42c1" alt="Release"></a>
+  <a href="https://github.com/marketplace/actions/git-guess"><img src="https://img.shields.io/badge/GitHub%20Action-git--guess-6f42c1?logo=githubactions&logoColor=white" alt="GitHub Action"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT"></a>
+</p>
+
+---
+
+Every team that adopts [Conventional Commits](https://www.conventionalcommits.org) hits the same wall: the format is easy, the *type* is not. Is this a `fix` or a `refactor`? Does a dependency bump count as `build` or `chore`? Everyone answers differently, linters only check the syntax, and the changelog ends up lying.
+
+`git guess` answers from the one thing that never lies: the diff. It was trained on 488,000 commits from 244 open-source projects, and it keeps learning from the last 1,000 commits of *your* repository, so it picks up your conventions instead of imposing its own.
 
 ## Install
 
 ```sh
-brew install Halleck45/tap/conventional
+brew install Halleck45/tap/git-guess
 ```
 
 ```sh
-go install github.com/Halleck45/conventional/cmd/conventional@latest
+curl -fsSL https://raw.githubusercontent.com/Halleck45/git-guess/main/install.sh | sh
 ```
-
-Prebuilt binaries for Linux, macOS and Windows (amd64, arm64) are on the [releases page](https://github.com/Halleck45/conventional/releases).
-
-## Usage
 
 ```sh
-conventional                       # staged changes (falls back to the working tree)
-conventional -m "add login"        # prints a complete header: feat(auth): add login
-git diff | conventional            # any unified diff on stdin
-conventional HEAD~1                # a commit, or a range such as main..feature
-conventional eval                  # score it against your own history
+go install github.com/Halleck45/git-guess/cmd/git-guess@latest
 ```
 
-When stdout is not a terminal, the output is exactly one line (the header), so it composes with anything.
+Prebuilt binaries for Linux, macOS and Windows (amd64, arm64) are on the [releases page](https://github.com/Halleck45/git-guess/releases). The binary is called `git-guess`, which is why `git guess` just works.
 
-### Commit with the type prefilled
+## Sixty seconds
 
 ```sh
-conventional commit -m "add login"               # runs: git commit -m "feat(auth): add login"
-git commit -m "$(conventional -m 'add login')"   # same thing, without the wrapper
+git guess                       # what are my staged changes? (falls back to the working tree)
+git guess -m "add login"        # feat(auth): add login
+git guess HEAD~1                # a commit, or a range such as main..feature
+git diff | git-guess            # any unified diff on stdin
+git guess eval                  # how well does it do on this repository's own history?
 ```
 
-`conventional commit` accepts the usual `git commit` arguments (`-a`, `--amend`, `--no-verify`...). Without `-m`, the editor opens with the header already on the first line.
-
-### Or install the hook once and forget about it
+When stdout is not a terminal, the output is exactly one line (the header), so it composes:
 
 ```sh
-conventional hook install
+git commit -m "$(git guess -m 'add login')"
 ```
 
-This writes a `prepare-commit-msg` hook (it respects `core.hooksPath`). From then on:
+## Forget about it: the hook
+
+```sh
+git guess hook install
+```
+
+From now on, in this repository:
 
 - `git commit -m "add login"` becomes `feat(auth): add login`
-- interactive `git commit` opens the editor prefilled with `feat(auth): ` and a comment listing the runner-up
-- a subject that already starts with a conventional type is left untouched
-- merge, squash and amend messages are never rewritten
-
-Skip it once with `CONVENTIONAL_HOOK=0 git commit -m "..."`. Remove it with `conventional hook uninstall`. The hook never blocks a commit: if the model or git fails, the message goes through as is.
-
-### Check it on your own repository
+- a plain `git commit` opens your editor with `feat(auth): ` already on the first line, and the runner-up in a comment
+- a subject that already has a type is left alone, and so are merge, squash, fixup, revert and amend messages
+- when it is not sure, it asks once, in one keystroke:
 
 ```
-$ conventional eval
-replayed 248 commits of this repository
-  top-1 75%   top-2 91%   (using this repo's history)
-
-  chore      144/158  █████████░  guessed as docs 9, ci 2
-  fix         11/23   █████░░░░░  guessed as chore 8, feat 2
-  docs        17/18   █████████░  guessed as chore 1
-  ...
+? fix 41% or refactor 38%? [f/r, Enter keeps fix]
 ```
 
-`conventional eval` replays the last 200 conventional commits of the repository (`-n` changes that), guesses each one from its diff and compares with the type the author chose. Add `--with-message` to also feed it the subject line, as the hook does. The history prior is computed from commits older than the replayed window, so the score is what you would have seen at the time.
+The hook never blocks a commit: if anything fails, your message goes through untouched. Skip it once with `GIT_GUESS_HOOK=0 git commit ...`, never be asked with `GIT_GUESS_ASK=0`, remove it with `git guess hook uninstall`. It respects `core.hooksPath`, so it lives happily next to husky or lefthook (add `git-guess hook run "$@"` to your existing `prepare-commit-msg`).
 
-### In CI: label pull requests, lint commit types
+Prefer a wrapper to a hook? `git guess commit -m "add login"` runs `git commit -m "feat(auth): add login"` and passes every other argument through (`-a`, `-s`, `--amend`, `--no-verify`...).
+
+## In CI: label pull requests, lint commit types
 
 ```yaml
-# .github/workflows/conventional.yml
+# .github/workflows/git-guess.yml
 on:
   pull_request:
 permissions:
   contents: read
   pull-requests: write
 jobs:
-  conventional:
+  guess:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: Halleck45/conventional@v1
-        with:
-          label: true            # adds enhancement / bug / documentation / ... to the PR
-          comment: false         # or a sticky comment with the guess and alternatives
-          check-commits: true    # annotates commits without a type, or with a disputed one
+      - uses: Halleck45/git-guess@v1
 ```
 
-The action guesses the type of the whole pull request diff (outputs `type`, `scope`, `confidence`, `header`), labels it (`label-map` and `label-prefix` control the names, `min-confidence` the threshold), and runs `conventional check` on its commits.
+That is enough to get every pull request labeled `enhancement`, `bug`, `documentation`, and so on, from its diff. Options:
 
-`conventional check <base>..<head>` is the semantic linter behind it. Unlike commitlint it reads the diff: a commit without a type gets a suggestion, and a commit declared `docs` whose diff is clearly source code is flagged as disputed.
+| input | default | what it does |
+| --- | --- | --- |
+| `label` | `true` | add a label with the guessed type |
+| `label-map` | `feat=enhancement,fix=bug,docs=documentation` | rename types to your labels; other types keep their name |
+| `label-prefix` | `""` | prefix for the remaining types, e.g. `type: ` |
+| `min-confidence` | `0.5` | do not label below this confidence |
+| `comment` | `false` | keep one sticky comment with the guess and its alternatives |
+| `check-commits` | `true` | annotate commits without a type, or with a type the diff disputes |
+| `strict` | `false` | fail the job on disputed types too |
+
+Outputs `type`, `scope`, `confidence` and `header` are available to later steps, for example to prefix the PR title or pick a release channel.
+
+Behind the action is `git guess check`, a semantic linter you can run anywhere:
 
 ```
-$ conventional check main..HEAD
+$ git guess check main..HEAD
   ✔ 3f2a1c0 fix(router): keep query on redirect
   ✘ 9b8e7d6 add retry option
       no type; suggestion: feat: add retry option
@@ -113,127 +120,106 @@ $ conventional check main..HEAD
 3 commits checked, 1 without type, 1 disputed
 ```
 
-Exit code 1 when a commit has no type; `--strict` also fails on disputed types; `--github` prints workflow annotations; `--json` for anything else. Without a range it checks the current branch against its upstream.
+Unlike commitlint, it reads the diff. Exit code 1 when a commit has no type, `--strict` to fail on disputed ones too, `--github` for workflow annotations, `--json` for everything else. Without a range it checks the current branch against its upstream.
 
-### Machine readable
+## It learns your repository
 
-```sh
-$ conventional --json
-{
-  "type": "feat",
-  "scope": "auth",
-  "confidence": 0.82,
-  "header": "feat(auth):",
-  "candidates": [
-    { "type": "feat", "p": 0.82 },
-    { "type": "fix", "p": 0.11 },
-    { "type": "refactor", "p": 0.05 }
-  ],
-  "source": "staged",
-  "files": 3,
-  "added": 48,
-  "removed": 6,
-  "adapted_to_repo": true,
-  "history_commits": 1000
-}
-```
+The first time it runs in a repository, `git guess` indexes the last 1,000 conventional commits (a second or two, once; the index lives in `.git/git-guess/` and is refreshed incrementally). Every guess then weighs the global model against three local pieces of evidence:
 
-`--explain` adds the features that pushed the decision one way or the other:
-
-```
-$ conventional --explain
-✔ test  █████████░ 91%
-  ...
-  why test rather than feat
-    + directory tests                          +1.84
-    + file name word test                      +1.21
-    + added token assert                       +0.77
-    − new identifier LoginService              -0.42
-```
-
-### Learning from the repository
-
-The first time it runs in a repository, `conventional` indexes the last 1000 conventional commits (a few seconds, once; the index lives in `.git/conventional/` and is refreshed incrementally). From then on every guess combines the global model with three local pieces of evidence:
-
-- the types of the past diffs most similar to yours (nearest neighbours),
+- the types of the past diffs most similar to yours,
 - what this repository tends to call what the global model guesses (a project that says `chore` for CI changes gets `chore`),
 - the types of past commits that touched the same files.
 
-A small second-stage model, trained on chronological replays of hundreds of repositories, weighs these against the global guess. On repositories never seen in training this lifts top-1 accuracy from 59% to 70% and top-2 from 79% to 88%, and disciplined repositories go well beyond (see `conventional eval`). `--no-prior` disables it. Diffs read from stdin are never adapted. Repositories with fewer than 20 conventional commits only get the global model.
-
-### When it is not sure
-
-Below 55% confidence, `conventional commit` and the hook ask, once, in one keystroke:
+You can watch it work:
 
 ```
-? fix 41% or refactor 38%? [f/r, Enter keeps fix]
+$ git guess eval
+replayed 250 commits of this repository, each scored with only the commits before it
+  top-1 79%   top-2 90%   (global model alone: 78%)
+
+  chore      147/159  █████████░  guessed as fix 6, docs 5
+  fix         18/24   ████████░░  guessed as chore 3, feat 3
+  docs        16/18   █████████░  guessed as chore 2
+  ...
 ```
 
-Set `CONVENTIONAL_ASK=0` to never be asked. Nothing is asked when there is no terminal (CI, editors).
+`eval` replays your history in order, guessing each commit from the ones before it, and compares with what the author chose. Run it before installing the hook: it tells you exactly what to expect on your project.
 
-The scope is guessed from monorepo layouts (`packages/*`, `apps/*`, `crates/*`, `internal/*`...) and from the scopes already used in the history. `--scope api` forces one, `--no-scope` removes it.
+`--explain` shows the closest past commits and the features that drove a decision; `--no-prior` turns the local learning off. Diffs read from stdin are never adapted.
 
-### Flags and exit codes
+## How good is it, honestly
 
-```
--m, --message <subject>   draft subject; prints "type(scope): subject"
--n, --top <n>             number of candidates shown (default 3)
--q, --quiet               print only the type
-    --json                machine readable output
-    --explain             show which features drove the decision
-    --scope <name>        force the scope
-    --no-scope            never add a scope
-    --no-prior            do not adapt to this repository's history
-    --staged              only staged changes, no fallback to the working tree
-    --unstaged            only unstaged changes
-    --all                 everything since HEAD
-    --min-confidence <p>  exit 3 when the confidence is below p (0..1)
-    --no-color            disable colors
-```
-
-Exit codes: `0` ok, `1` error (no changes, not a diff, git failure), `3` confidence below `--min-confidence`. The last one is handy in CI: `conventional --min-confidence 0.6 -q || echo "please pick the type yourself"`.
-
-## How it works
-
-1. A diff parser turns the patch into files, hunks and lines.
-2. A featurizer produces about 90 dense structural features (file counts, added/removed ratios, languages, file kinds such as test, doc, config, lockfile, CI...) plus hashed n-grams of paths, code tokens, line shapes and hunk contexts (the function a hunk lives in). Feature hashing keeps the vocabulary unbounded and the binary small.
-3. A multinomial logistic regression scores the 11 types. It was trained with scikit-learn on commits from about 240 open-source repositories that use Conventional Commits, across many languages and ecosystems, with every commit seen without its message and half of them a second time with it, so the model works in both situations. Probabilities are temperature-calibrated on held-out repositories so that 80% means roughly 80%.
-4. Weights are pruned, quantized to int16 and embedded in the binary. The same Go featurizer is used for training (`go run ./cmd/featurize`) and inference, so there is no drift between the two.
-
-## Accuracy
-
-Evaluated on held-out repositories that were never seen during training (a split by repository, not by commit, so the numbers reflect what you get on a new project):
+Measured on 36 repositories the model had never seen (77,000 commits, split by repository, not by commit), scoring each commit with only the commits before it:
 
 | Setting | Top-1 | Top-2 |
 | --- | --- | --- |
-| Diff only (stdin, or a repository without history) | 59% | 79% |
-| Diff + repository history (the default inside a repository) | 70% | 88% |
-| Diff + subject line (`-m`), no history | 64% | 82% |
+| Diff only, no history (stdin, brand-new repository) | 59% | 79% |
+| Diff + your repository's history (the default) | **70%** | **88%** |
 
-The history numbers come from a chronological replay: each held-out commit is scored with only the commits before it, as `conventional eval` does.
+Probabilities are calibrated: above 90% confidence it is right 96% of the time; below 50% about 44%, which is why it asks instead of guessing silently.
 
-Trained on 488,111 commits from 244 repositories (36 of them, 77,429 commits, held out for the numbers above). Probabilities are calibrated: when it says 80%, it is right about 85% of the time; below 40%, about a third.
+The remaining errors are almost all `feat` against `fix` against `refactor`, and `chore` against everything. That is not a modelling gap: the same three-line patch is a fix for one author and a refactor for another, and the diff does not carry intent. The easy types are where it shines (docs 86% recall, test 77%, ci 66% before local learning, higher after). Different projects label the same change differently, which is exactly why it reads your history.
 
-The "easy" types are where it shines (docs 86% recall, test 77%, ci 66%), and the confusion is concentrated where humans disagree too: feat against fix, and chore against everything. Different projects label the same kind of change differently, which is exactly why it reads your history.
+## How it works
 
-## Training your own
-
-```sh
-python3 scripts/collect.py          # probe and clone repositories, extract (diff, type) pairs into data/raw
-go run ./cmd/featurize              # featurize with the exact code used at inference, into data/features
-python3 scripts/train.py --final    # train, calibrate, quantize, export internal/model/model.bin
-python3 scripts/experiments/exp_local2.py   # chronological replay of every repository (slow)
-python3 scripts/train_meta.py --final       # second stage, export internal/model/meta.bin
-go build ./cmd/conventional         # both models are embedded
+```mermaid
+flowchart LR
+    A[git diff] --> B[diff parser]
+    B --> C[featurizer<br/>90 structural features<br/>+ hashed n-grams of paths,<br/>tokens, line shapes, hunks]
+    C --> D[global model<br/>multinomial logistic regression<br/>488k commits, 244 repos]
+    C --> E[your history<br/>nearest diffs · local confusion<br/>· per-file types]
+    D --> F[second stage]
+    E --> F
+    F --> G["feat(auth) 82%"]
 ```
 
-`scripts/repos.txt` is the seed list; `scripts/collect.py` keeps the repositories whose recent history is mostly conventional.
+- **Parser and featurizer** are pure Go and shared between training and inference, so what the model learned is exactly what it sees.
+- **Global model**: weights pruned, quantized to int16 (3.8 MB) and temperature-calibrated on held-out repositories.
+- **Second stage**: a 47-weight model trained on chronological replays of every training repository, so it knows how much to trust your history versus the global model at any history size.
+- **Scope** is guessed from monorepo layouts (`packages/*`, `apps/*`, `crates/*`, `internal/*`...) and from the scopes already used in your log. `--scope api` forces one, `--no-scope` removes it.
 
-## Limitations
+No network, no telemetry, no model download: everything is embedded in a 7 MB binary.
 
-- feat, fix and refactor are inherently ambiguous from a diff alone. A three-line change can be any of them; only the author knows the intent. The subject line (`-m`) helps a lot.
-- revert is rarely detectable without the message.
-- It is a suggestion. `conventional check` enforces the presence of a type and flags contradictions, but it will not argue about intent.
+## Compared to
+
+| | git guess | commitizen / cz | commitlint | AI commit writers |
+| --- | --- | --- | --- | --- |
+| picks the type for you | from the diff | you pick from a menu | no, checks syntax only | from the diff, via an LLM |
+| learns your repository | yes | no | no | no |
+| offline, no API key | yes | yes | yes | no |
+| latency | ~30 ms | interactive | ~200 ms (node) | seconds, costs money |
+| lints existing commits | semantically | no | syntactically | no |
+| labels pull requests | yes | no | no | no |
+
+They compose: commitizen for the interactive flow, commitlint for enforcement, `git guess` to fill in the type.
+
+## FAQ
+
+**Does it send my code anywhere?** No. There is no network code in the binary.
+
+**Does it slow down `git commit`?** About 30 ms once the history is indexed, a second or two on the very first run in a repository.
+
+**My repository does not use Conventional Commits yet.** Then there is no history to learn from and you get the global model (59% top-1, 79% top-2). Accuracy climbs as your history grows; `git guess eval` shows where you stand.
+
+**Windows?** Yes, the hook runs under Git for Windows' shell. The interactive question needs a terminal and is skipped in editors and CI.
+
+**Can I disable the question, the scope, the local learning?** `GIT_GUESS_ASK=0`, `--no-scope`, `--no-prior`.
+
+**Exit codes?** `0` ok, `1` error (no changes, not a diff, git failure), `3` confidence below `--min-confidence`. `git guess --min-confidence 0.6 -q || echo "pick it yourself"`.
+
+**Machine readable?** `--json` gives `type`, `scope`, `confidence`, `header`, `candidates`, `source`, `files`, `added`, `removed`, `adapted_to_repo`, `history_commits` and, with `--explain`, `nearest` and the driving features.
+
+## Train your own
+
+```sh
+python3 scripts/collect.py                  # probe and clone repositories, extract (diff, type) pairs into data/raw
+make featurize                              # featurize with the exact code used at inference
+make train                                  # train, calibrate, quantize, export internal/model/model.bin
+make train-meta                             # replay every repository, train and export the second stage
+make build                                  # both models are embedded
+```
+
+`scripts/repos.txt` is the seed list. Pull requests adding repositories from under-represented ecosystems are the most valuable contribution you can make.
 
 ## License
 
