@@ -74,13 +74,9 @@ func render(w io.Writer, r *Result, quiet, asJSON, tty bool, st style) {
 			fmt.Fprintf(w, "  %s %s\n", st.dim("also:"), strings.Join(alts, st.dim(" · ")))
 		}
 	}
-	note := fmt.Sprintf("%d file%s, +%d −%d, %s", r.Files, plural(r.Files), r.Added, r.Removed, r.Source)
 	if r.History > 0 {
-		note += fmt.Sprintf(", learned from %d commits of this repo", r.History)
-	} else if r.Adapted {
-		note += ", tuned to this repo's history"
+		fmt.Fprintf(w, "  %s\n", st.dim(fmt.Sprintf("learned from %d commits of this repo", r.History)))
 	}
-	fmt.Fprintf(w, "  %s\n", st.dim(note))
 	if len(r.Nearest) > 0 {
 		fmt.Fprintf(w, "\n  %s\n", st.dim("closest past commits of this repo"))
 		for i, n := range r.Nearest {
