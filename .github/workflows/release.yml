@@ -11,8 +11,6 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,11 +31,13 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
       - name: Publish to npm
-        # only when the NPM_TOKEN secret is configured
-        if: env.NPM_TOKEN != ''
+        # trusted publishing (OIDC): this workflow is declared as a trusted
+        # publisher of the git-guess package on npmjs.com, no token needed.
+        # Provenance is attached automatically. Requires npm >= 11.5.1.
+        # Does not fail the release while the trusted publisher is not set up yet.
+        continue-on-error: true
         working-directory: npm
-        env:
-          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
         run: |
+          npm install -g npm@latest
           npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
-          npm publish --provenance --access public
+          npm publish --access public
