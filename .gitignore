@@ -3,3 +3,7 @@ dist/
 *.test
 /git-guess
 /conventional
+
+# built by the pages workflow
+web/git-guess.wasm
+web/wasm_exec.js

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="330" viewBox="0 0 680 330" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1f27"/><stop offset="1" stop-color="#14171d"/>
+    </linearGradient>
+  </defs>
+  <rect width="680" height="330" rx="12" fill="url(#bg)"/>
+  <circle cx="22" cy="20" r="6" fill="#ff5f57"/><circle cx="42" cy="20" r="6" fill="#febc2e"/><circle cx="62" cy="20" r="6" fill="#28c840"/>
+  <text x="340" y="25" text-anchor="middle" fill="#6b7280" font-size="12">git guess</text>
+  <g fill="#d1d5db">
+    <text x="24" y="62"><tspan fill="#6b7280">$ </tspan>git add .</text>
+    <text x="24" y="86"><tspan fill="#6b7280">$ </tspan>git guess</text>
+    <text x="24" y="112"><tspan fill="#34d399">✔ </tspan><tspan font-weight="bold" fill="#f9fafb">feat(auth)</tspan><tspan fill="#4b5563">  ████████░░</tspan><tspan fill="#34d399"> 82%</tspan></text>
+    <text x="24" y="134"><tspan fill="#6b7280">  also: </tspan>fix<tspan fill="#6b7280"> 11% · </tspan>refactor<tspan fill="#6b7280"> 5%</tspan></text>
+    <text x="24" y="156" fill="#6b7280">  3 files, +48 −6, staged, learned from 1000 commits of this repo</text>
+    <text x="24" y="196"><tspan fill="#6b7280">$ </tspan>git commit -m "add login with magic links"</text>
+    <text x="24" y="220"><tspan fill="#a78bfa">git guess: </tspan>feat(auth): add login with magic links</text>
+    <text x="24" y="242" fill="#6b7280">[main 3f2a1c0] feat(auth): add login with magic links</text>
+    <text x="24" y="282"><tspan fill="#6b7280">$ </tspan>git guess check main..HEAD</text>
+    <text x="24" y="306"><tspan fill="#34d399">  ✔ </tspan><tspan fill="#6b7280">3f2a1c0 </tspan>feat(auth): add login with magic links<tspan fill="#6b7280">    1 commit checked</tspan></text>
+  </g>
+</svg>
