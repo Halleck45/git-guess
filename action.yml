@@ -1,0 +1,145 @@
+name: "conventional"
+description: "Guess the Conventional Commits type of a pull request from its diff, label it, and lint its commits"
+author: "Jean-François Lépine"
+branding:
+  icon: "git-commit"
+  color: "purple"
+inputs:
+  version:
+    description: "conventional release to use (e.g. v0.2.0), or latest"
+    default: "latest"
+  token:
+    description: "GitHub token used to label and comment"
+    default: ${{ github.token }}
+  label:
+    description: "Add a label to the pull request with the guessed type (true/false)"
+    default: "true"
+  label-map:
+    description: "Comma separated type=label pairs; types not listed get the type name as label"
+    default: "feat=enhancement,fix=bug,docs=documentation"
+  label-prefix:
+    description: "Prefix for labels not covered by label-map (e.g. 'type: ')"
+    default: ""
+  min-confidence:
+    description: "Only label when the confidence is at least this value (0..1)"
+    default: "0.5"
+  comment:
+    description: "Post (and update) a comment with the guess and its alternatives (true/false)"
+    default: "false"
+  check-commits:
+    description: "Lint the pull request commits with `conventional check --github` (true/false)"
+    default: "true"
+  strict:
+    description: "Fail the check when a declared type is disputed by the diff (true/false)"
+    default: "false"
+outputs:
+  type:
+    description: "Guessed type for the whole pull request"
+    value: ${{ steps.guess.outputs.type }}
+  scope:
+    description: "Guessed scope"
+    value: ${{ steps.guess.outputs.scope }}
+  confidence:
+    description: "Confidence of the guess (0..1)"
+    value: ${{ steps.guess.outputs.confidence }}
+  header:
+    description: "Suggested header, e.g. feat(auth):"
+    value: ${{ steps.guess.outputs.header }}
+runs:
+  using: "composite"
+  steps:
+    - name: Install conventional
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m)
+        case "$arch" in x86_64) arch=amd64;; aarch64|arm64) arch=arm64;; esac
+        if [ "$VERSION" = "latest" ]; then
+          VERSION=$(gh release view --repo Halleck45/conventional --json tagName -q .tagName)
+        fi
+        url="https://github.com/Halleck45/conventional/releases/download/${VERSION}/conventional_${VERSION#v}_${os}_${arch}.tar.gz"
+        mkdir -p "$RUNNER_TEMP/conventional"
+        curl -sSL "$url" | tar -xz -C "$RUNNER_TEMP/conventional"
+        echo "$RUNNER_TEMP/conventional" >> "$GITHUB_PATH"
+    - name: Fetch base branch
+      if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+      shell: bash
+      run: |
+        git fetch --no-tags --depth=200 origin "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}" || true
+        git fetch --no-tags --deepen=200 || true
+    - name: Guess the type of the pull request
+      id: guess
+      shell: bash
+      run: |
+        set -euo pipefail
+        base="origin/${{ github.base_ref }}"
+        json=$(conventional "${base}..HEAD" --json --no-color)
+        echo "$json"
+        for k in type scope confidence header; do
+          echo "$k=$(echo "$json" | python3 -c "import json,sys; print(json.load(sys.stdin).get('$k',''))")" >> "$GITHUB_OUTPUT"
+        done
+    - name: Label the pull request
+      if: inputs.label == 'true' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TYPE: ${{ steps.guess.outputs.type }}
+        CONF: ${{ steps.guess.outputs.confidence }}
+        MAP: ${{ inputs.label-map }}
+        PREFIX: ${{ inputs.label-prefix }}
+        MIN: ${{ inputs.min-confidence }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+        if python3 -c "import sys; sys.exit(0 if float('$CONF') >= float('$MIN') else 1)"; then
+          label="$PREFIX$TYPE"
+          IFS=',' read -ra pairs <<< "$MAP"
+          for p in "${pairs[@]}"; do
+            k="${p%%=*}"; v="${p#*=}"
+            [ "$k" = "$TYPE" ] && label="$v"
+          done
+          gh label create "$label" --force --color "6f42c1" --description "Guessed by conventional" >/dev/null 2>&1 || true
+          # remove labels of other types previously set by this action, keep everything else
+          current=$(gh pr view "$PR" --json labels -q '.labels[].name')
+          for p in "${pairs[@]}" feat fix docs style refactor perf test build ci chore revert; do
+            v="${p#*=}"; k="${p%%=*}"; [ "$k" = "$p" ] && v="$PREFIX$k"
+            if [ "$v" != "$label" ] && echo "$current" | grep -qx "$v"; then gh pr edit "$PR" --remove-label "$v" || true; fi
+          done
+          gh pr edit "$PR" --add-label "$label"
+          echo "labeled: $label"
+        else
+          echo "confidence $CONF below $MIN, not labeling"
+        fi
+    - name: Comment
+      if: inputs.comment == 'true' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+        body=$(conventional "origin/${{ github.base_ref }}..HEAD" --json --no-color | python3 -c '
+        import json,sys
+        r=json.load(sys.stdin)
+        alts=", ".join(f"{c[\"type\"]} {c[\"p\"]*100:.0f}%" for c in r["candidates"][1:3])
+        print("<!-- conventional -->")
+        print(f"**{r[\"header\"].rstrip(\":\")}** ({r[\"confidence\"]*100:.0f}%, also {alts})")
+        print()
+        print(f"<sub>{r[\"files\"]} files, +{r[\"added\"]} −{r[\"removed\"]}. Guessed from the diff by [conventional](https://github.com/Halleck45/conventional).</sub>")')
+        existing=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" -q '.[] | select(.body | startswith("<!-- conventional -->")) | .id' | head -1)
+        if [ -n "$existing" ]; then
+          gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$existing" -f body="$body" >/dev/null
+        else
+          gh pr comment "$PR" --body "$body"
+        fi
+    - name: Check commits
+      if: inputs.check-commits == 'true' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
+      shell: bash
+      run: |
+        set -euo pipefail
+        args="--github --no-color"
+        [ "${{ inputs.strict }}" = "true" ] && args="$args --strict"
+        conventional check "origin/${{ github.base_ref }}..HEAD" $args

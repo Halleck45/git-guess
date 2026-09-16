@@ -36,6 +36,7 @@ func runCommit(args []string, opts classifyOptions, stdin *os.File, stdout, stde
 	if err != nil {
 		return err
 	}
+	maybeAsk(res, os.Stderr)
 	if subject != "" {
 		header := res.formatHeader(subject)
 		fmt.Fprintln(stderr, header)

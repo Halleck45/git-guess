@@ -3,24 +3,20 @@ package main
 import (
 	"fmt"
 	"io"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/Halleck45/conventional/internal/diff"
-	"github.com/Halleck45/conventional/internal/features"
 	"github.com/Halleck45/conventional/internal/gitx"
+	"github.com/Halleck45/conventional/internal/history"
 	"github.com/Halleck45/conventional/internal/model"
 )
 
 // runEval replays the last n conventional commits of the current repository
-// and compares the guess with the type the author chose. The repository
-// prior is computed from commits older than the evaluated window, so the
-// numbers are what a user would have seen at the time.
+// and compares the guess with the type the author chose. Each commit is
+// scored with only the commits older than it, exactly as at the time.
 func runEval(args []string, stdout io.Writer, st style) error {
 	n := 200
-	withMsg := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "-n", "--last":
@@ -33,8 +29,6 @@ func runEval(args []string, stdout io.Writer, st style) error {
 				return err
 			}
 			n = v
-		case "--with-message":
-			withMsg = true
 		default:
 			return fmt.Errorf("unknown eval flag %s", args[i])
 		}
@@ -46,77 +40,61 @@ func runEval(args []string, stdout io.Writer, st style) error {
 	if err != nil {
 		return err
 	}
-	out, err := exec.Command("git", "log", "--no-merges", "--format=%H%x00%s", fmt.Sprintf("-n%d", n)).Output()
+	meta, err := model.DefaultMeta()
 	if err != nil {
-		return fmt.Errorf("git log: %w", err)
+		return err
 	}
-	hist, _ := gitx.ReadHistoryRange(n, 500, m.Classes)
-	usePrior := hist != nil && hist.Conventional >= 30
-	type row struct{ sha, subject, want string }
-	var rows []row
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		sha, subject, ok := strings.Cut(line, "\x00")
-		if !ok {
-			continue
-		}
-		typ, _, ok := gitx.ParseHeader(subject, m.Classes)
-		if !ok {
-			continue
-		}
-		rows = append(rows, row{sha, subject, typ})
+	idx, err := history.Load(m, 0, indexProgress())
+	if err != nil {
+		return err
 	}
-	if len(rows) == 0 {
-		return fmt.Errorf("no conventional commits among the last %d", n)
+	total := len(idx.Entries)
+	if total == 0 {
+		return fmt.Errorf("no conventional commits found in the last %d commits", history.Window*2)
 	}
-	correct, top2, total := 0, 0, 0
+	start := max(0, total-n)
+	correct, top2, scored := 0, 0, 0
+	globalCorrect := 0
 	perType := map[string][2]int{}
 	confusion := map[string]map[string]int{}
-	for _, r := range rows {
-		raw, err := gitx.DiffRev(r.sha)
-		if err != nil {
-			continue
+	for j := start; j < total; j++ {
+		e := idx.Entries[j]
+		z := make([]float64, len(e.Logits))
+		for i, x := range e.Logits {
+			z[i] = float64(x)
 		}
-		d := diff.ParseString(string(raw))
-		if len(d.Files) == 0 {
-			continue
+		p := m.Probabilities(z)
+		if p[argmaxF(p)] > 0 && m.Classes[argmaxF(p)] == m.Classes[e.Type] {
+			globalCorrect++
 		}
-		msg := ""
-		if withMsg {
-			if _, rest, ok := strings.Cut(r.subject, ": "); ok {
-				msg = rest
-			}
-		}
-		v := features.Extract(d, features.Options{Message: msg})
-		p := m.Probabilities(m.Logits(v))
-		if usePrior {
-			p = m.AdaptPrior(p, hist.Types, 0.7)
+		if j >= history.MinEntries {
+			ev := idx.Gather(m, e.Vec, e.Paths, z, j)
+			p = meta.Predict(model.MetaFeatures(p, ev.KNN, ev.Conf, ev.File, ev.Seen, ev.Size, ev.MaxSim))
 		}
 		c := m.Rank(p)
-		total++
-		pt := perType[r.want]
+		want := m.Classes[e.Type]
+		scored++
+		pt := perType[want]
 		pt[1]++
-		if c[0].Type == r.want {
+		if c[0].Type == want {
 			correct++
 			pt[0]++
 		}
-		if c[0].Type == r.want || c[1].Type == r.want {
+		if c[0].Type == want || c[1].Type == want {
 			top2++
 		}
-		perType[r.want] = pt
-		if confusion[r.want] == nil {
-			confusion[r.want] = map[string]int{}
+		perType[want] = pt
+		if confusion[want] == nil {
+			confusion[want] = map[string]int{}
 		}
-		confusion[r.want][c[0].Type]++
+		confusion[want][c[0].Type]++
 	}
-	if total == 0 {
+	if scored == 0 {
 		return fmt.Errorf("nothing to evaluate")
 	}
-	fmt.Fprintf(stdout, "%s %d commits of this repository\n", st.bold("replayed"), total)
-	fmt.Fprintf(stdout, "  top-1 %s   top-2 %s", st.bold(percent(float64(correct)/float64(total))), st.bold(percent(float64(top2)/float64(total))))
-	if usePrior {
-		fmt.Fprint(stdout, st.dim("   (using this repo's history)"))
-	}
-	fmt.Fprintln(stdout)
+	fmt.Fprintf(stdout, "%s %d commits of this repository, each scored with only the %s\n", st.bold("replayed"), scored, st.dim("commits before it"))
+	fmt.Fprintf(stdout, "  top-1 %s   top-2 %s   %s\n", st.bold(percent(float64(correct)/float64(scored))), st.bold(percent(float64(top2)/float64(scored))),
+		st.dim(fmt.Sprintf("(global model alone: %s)", percent(float64(globalCorrect)/float64(scored)))))
 	types := make([]string, 0, len(perType))
 	for t := range perType {
 		types = append(types, t)
@@ -125,7 +103,6 @@ func runEval(args []string, stdout io.Writer, st style) error {
 	fmt.Fprintln(stdout)
 	for _, t := range types {
 		pt := perType[t]
-		var conf []string
 		var others []string
 		for o := range confusion[t] {
 			if o != t {
@@ -133,6 +110,7 @@ func runEval(args []string, stdout io.Writer, st style) error {
 			}
 		}
 		sort.Slice(others, func(i, j int) bool { return confusion[t][others[i]] > confusion[t][others[j]] })
+		var conf []string
 		for i, o := range others {
 			if i >= 2 {
 				break
@@ -146,4 +124,14 @@ func runEval(args []string, stdout io.Writer, st style) error {
 		fmt.Fprintln(stdout, line)
 	}
 	return nil
+}
+
+func argmaxF(p []float64) int {
+	b := 0
+	for i, x := range p {
+		if x > p[b] {
+			b = i
+		}
+	}
+	return b
 }

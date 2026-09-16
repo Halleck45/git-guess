@@ -75,10 +75,21 @@ func render(w io.Writer, r *Result, quiet, asJSON, tty bool, st style) {
 		}
 	}
 	note := fmt.Sprintf("%d file%s, +%d −%d, %s", r.Files, plural(r.Files), r.Added, r.Removed, r.Source)
-	if r.Adapted {
+	if r.History > 0 {
+		note += fmt.Sprintf(", learned from %d commits of this repo", r.History)
+	} else if r.Adapted {
 		note += ", tuned to this repo's history"
 	}
 	fmt.Fprintf(w, "  %s\n", st.dim(note))
+	if len(r.Nearest) > 0 {
+		fmt.Fprintf(w, "\n  %s\n", st.dim("closest past commits of this repo"))
+		for i, n := range r.Nearest {
+			if i >= 5 {
+				break
+			}
+			fmt.Fprintf(w, "    %s %-9s %s\n", st.dim(n.Sha[:7]), n.Type, st.dim(fmt.Sprintf("%.0f%% similar", n.Sim*100)))
+		}
+	}
 	if r.Explain != nil {
 		fmt.Fprintf(w, "\n  %s %s %s %s\n", st.dim("why"), st.bold(r.Type), st.dim("rather than"), st.bold(r.Explain.Against))
 		for _, c := range r.Explain.For {

@@ -241,3 +241,28 @@ func TestFlagForms(t *testing.T) {
 		t.Errorf("-n2 not honored: %s", out.String())
 	}
 }
+
+func TestCheck(t *testing.T) {
+	dir := tempRepo(t)
+	os.WriteFile(filepath.Join(dir, "a.md"), []byte("# a\n\nwords\n"), 0o644)
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "docs: add a")
+	os.WriteFile(filepath.Join(dir, "b.md"), []byte("# b\n\nwords\n"), 0o644)
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "add b without a type")
+	var out bytes.Buffer
+	err := runCheck([]string{"HEAD~2..HEAD", "--json"}, &out, &out, style{})
+	if err == nil {
+		t.Fatalf("expected exit 1 for a commit without type\n%s", out.String())
+	}
+	var res struct {
+		Missing int `json:"missing"`
+		Commits []checkResult
+	}
+	if jerr := json.Unmarshal(out.Bytes(), &res); jerr != nil || res.Missing != 1 || len(res.Commits) != 2 {
+		t.Fatalf("bad check output (%v): %s", jerr, out.String())
+	}
+	if res.Commits[0].Status != "ok" || res.Commits[1].Status != "missing" || res.Commits[1].Guess == "" {
+		t.Errorf("statuses: %+v", res.Commits)
+	}
+}

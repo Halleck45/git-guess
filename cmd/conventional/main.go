@@ -26,6 +26,7 @@ Usage:
   git diff | conventional [flags]      classify a diff from stdin
   conventional commit [git commit args] commit with the type prefilled
   conventional hook install|uninstall  prefill the type on every git commit
+  conventional check [<base>..<head>]  lint commit types semantically (for CI; --github for annotations)
   conventional eval [-n 200]           replay this repository's history and score the guesses
   conventional version
 
@@ -155,6 +156,9 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) error {
 		case a == "eval":
 			tty := isTerminal(os.Stdout)
 			return runEval(args[i+1:], stdout, style{color: tty && !noColor && os.Getenv("NO_COLOR") == ""})
+		case a == "check":
+			tty := isTerminal(os.Stdout)
+			return runCheck(args[i+1:], stdout, stderr, style{color: tty && !noColor && os.Getenv("NO_COLOR") == ""})
 		case strings.HasPrefix(a, "-") && a != "-":
 			return fmt.Errorf("unknown flag %s (see --help)", a)
 		default:

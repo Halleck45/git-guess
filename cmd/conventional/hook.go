@@ -147,6 +147,7 @@ func hookRun(args []string, stderr io.Writer) error {
 	if err != nil {
 		return nil
 	}
+	maybeAsk(res, os.Stderr)
 	var out string
 	if first == "" {
 		// Interactive commit: prefill "type(scope): " on the first line.

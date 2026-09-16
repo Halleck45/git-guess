@@ -4,29 +4,33 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/Halleck45/conventional/internal/diff"
 	"github.com/Halleck45/conventional/internal/features"
 	"github.com/Halleck45/conventional/internal/gitx"
+	"github.com/Halleck45/conventional/internal/history"
 	"github.com/Halleck45/conventional/internal/model"
 	"github.com/Halleck45/conventional/internal/scope"
 )
 
 // Result of a classification.
 type Result struct {
-	Type       string            `json:"type"`
-	Scope      string            `json:"scope,omitempty"`
-	Breaking   bool              `json:"breaking,omitempty"`
-	Confidence float64           `json:"confidence"`
-	Header     string            `json:"header"`
-	Candidates []model.Candidate `json:"candidates"`
-	Source     string            `json:"source"`
-	Files      int               `json:"files"`
-	Added      int               `json:"added"`
-	Removed    int               `json:"removed"`
-	Adapted    bool              `json:"adapted_to_repo"`
-	Explain    *Explanation      `json:"explain,omitempty"`
+	Type       string              `json:"type"`
+	Scope      string              `json:"scope,omitempty"`
+	Breaking   bool                `json:"breaking,omitempty"`
+	Confidence float64             `json:"confidence"`
+	Header     string              `json:"header"`
+	Candidates []model.Candidate   `json:"candidates"`
+	Source     string              `json:"source"`
+	Files      int                 `json:"files"`
+	Added      int                 `json:"added"`
+	Removed    int                 `json:"removed"`
+	Adapted    bool                `json:"adapted_to_repo"`
+	History    int                 `json:"history_commits,omitempty"`
+	Nearest    []history.Neighbour `json:"nearest,omitempty"`
+	Explain    *Explanation        `json:"explain,omitempty"`
 }
 
 // Explanation lists the features that drove the decision.
@@ -107,15 +111,20 @@ func classify(opts classifyOptions) (*Result, error) {
 
 	var hist *gitx.History
 	adapted := false
+	histSize := 0
+	var nearest []history.Neighbour
 	if opts.stdin == nil && gitx.InRepo() {
 		hist, _ = gitx.ReadHistory(500, m.Classes)
-		if hist != nil && !opts.noPrior && hist.Conventional >= 30 {
-			p = m.AdaptPrior(p, hist.Types, opts.lambda)
-			adapted = true
+		if !opts.noPrior {
+			p, histSize, nearest = adaptToRepo(m, v, d, logits, p, hist, opts.lambda)
+			adapted = histSize > 0
 		}
 	}
 	cands := m.Rank(p)
-	res := &Result{Type: cands[0].Type, Confidence: cands[0].P, Candidates: cands, Source: source, Files: len(d.Files), Adapted: adapted}
+	res := &Result{Type: cands[0].Type, Confidence: cands[0].P, Candidates: cands, Source: source, Files: len(d.Files), Adapted: adapted, History: histSize}
+	if opts.explain {
+		res.Nearest = nearest
+	}
 	for _, f := range d.Files {
 		res.Added += f.Added
 		res.Removed += f.Removed
@@ -136,6 +145,49 @@ func classify(opts classifyOptions) (*Result, error) {
 		res.Explain = &Explanation{Against: cands[1].Type, For: pos, Contra: neg}
 	}
 	return res, nil
+}
+
+// adaptToRepo re-scores the prediction with the repository's own history.
+// With enough indexed commits the meta-model combines the global
+// probabilities with nearest past diffs, the local confusion pattern and
+// per-file history; otherwise it falls back to the marginal prior.
+func adaptToRepo(m *model.Model, v *features.Vector, d *diff.Diff, logits, p []float64, hist *gitx.History, lambda float64) ([]float64, int, []history.Neighbour) {
+	idx, err := history.Load(m, 0, indexProgress())
+	if err == nil && len(idx.Entries) >= history.MinEntries {
+		if meta, err := model.DefaultMeta(); err == nil {
+			paths := make([]string, 0, len(d.Files))
+			for _, f := range d.Files {
+				paths = append(paths, f.Path)
+			}
+			ev := idx.Gather(m, v.Sparse, paths, logits, -1)
+			f := model.MetaFeatures(p, ev.KNN, ev.Conf, ev.File, ev.Seen, ev.Size, ev.MaxSim)
+			return meta.Predict(f), ev.Size, ev.Nearest
+		}
+	}
+	if hist != nil && hist.Conventional >= 30 {
+		return m.AdaptPrior(p, hist.Types, lambda), 0, nil
+	}
+	return p, 0, nil
+}
+
+// indexProgress reports first-run indexing on stderr when it is a terminal.
+func indexProgress() history.Progress {
+	if !isTerminal(os.Stderr) {
+		return nil
+	}
+	announced := false
+	return func(done, total int) {
+		if total < 30 {
+			return
+		}
+		if !announced {
+			fmt.Fprintf(os.Stderr, "\rindexing %d commits of history (first run only)...", total)
+			announced = true
+		}
+		if done == total {
+			fmt.Fprint(os.Stderr, "\r\033[K")
+		}
+	}
 }
 
 // hasConventionalPrefix reports whether a subject already carries a type.

@@ -10,7 +10,7 @@ $ conventional
   3 files, +48 −6, staged, tuned to this repo's history
 ```
 
-You keep writing the subject. `conventional` writes the `feat(auth):` part, and it learns your repository's habits from `git log` before answering.
+You keep writing the subject. `conventional` writes the `feat(auth):` part. It learns your repository's habits first: the closest past diffs, what your project calls what, which files go with which type. It also runs in CI, where it labels pull requests and lints commit types against the diff.
 
 ## Install
 
@@ -75,6 +75,46 @@ replayed 248 commits of this repository
 
 `conventional eval` replays the last 200 conventional commits of the repository (`-n` changes that), guesses each one from its diff and compares with the type the author chose. Add `--with-message` to also feed it the subject line, as the hook does. The history prior is computed from commits older than the replayed window, so the score is what you would have seen at the time.
 
+### In CI: label pull requests, lint commit types
+
+```yaml
+# .github/workflows/conventional.yml
+on:
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  conventional:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: Halleck45/conventional@v1
+        with:
+          label: true            # adds enhancement / bug / documentation / ... to the PR
+          comment: false         # or a sticky comment with the guess and alternatives
+          check-commits: true    # annotates commits without a type, or with a disputed one
+```
+
+The action guesses the type of the whole pull request diff (outputs `type`, `scope`, `confidence`, `header`), labels it (`label-map` and `label-prefix` control the names, `min-confidence` the threshold), and runs `conventional check` on its commits.
+
+`conventional check <base>..<head>` is the semantic linter behind it. Unlike commitlint it reads the diff: a commit without a type gets a suggestion, and a commit declared `docs` whose diff is clearly source code is flagged as disputed.
+
+```
+$ conventional check main..HEAD
+  ✔ 3f2a1c0 fix(router): keep query on redirect
+  ✘ 9b8e7d6 add retry option
+      no type; suggestion: feat: add retry option
+  ? 1c2d3e4 docs: handle null token
+      declared docs but the diff looks like fix 91%
+
+3 commits checked, 1 without type, 1 disputed
+```
+
+Exit code 1 when a commit has no type; `--strict` also fails on disputed types; `--github` prints workflow annotations; `--json` for anything else. Without a range it checks the current branch against its upstream.
+
 ### Machine readable
 
 ```sh
@@ -93,7 +133,8 @@ $ conventional --json
   "files": 3,
   "added": 48,
   "removed": 6,
-  "adapted_to_repo": true
+  "adapted_to_repo": true,
+  "history_commits": 1000
 }
 ```
 
@@ -110,9 +151,25 @@ $ conventional --explain
     − new identifier LoginService              -0.42
 ```
 
-### Adapting to the repository
+### Learning from the repository
 
-`conventional` reads the last 500 commit subjects of the current repository. When at least 30 of them follow Conventional Commits, it reweights its probabilities with the repository's own type distribution: a project that commits `chore` all day will get `chore` suggested more readily than one that never does. `--no-prior` disables this. Diffs read from stdin are never adapted.
+The first time it runs in a repository, `conventional` indexes the last 1000 conventional commits (a few seconds, once; the index lives in `.git/conventional/` and is refreshed incrementally). From then on every guess combines the global model with three local pieces of evidence:
+
+- the types of the past diffs most similar to yours (nearest neighbours),
+- what this repository tends to call what the global model guesses (a project that says `chore` for CI changes gets `chore`),
+- the types of past commits that touched the same files.
+
+A small second-stage model, trained on chronological replays of hundreds of repositories, weighs these against the global guess. On repositories never seen in training this lifts top-1 accuracy from 59% to 70% and top-2 from 79% to 88%, and disciplined repositories go well beyond (see `conventional eval`). `--no-prior` disables it. Diffs read from stdin are never adapted. Repositories with fewer than 20 conventional commits only get the global model.
+
+### When it is not sure
+
+Below 55% confidence, `conventional commit` and the hook ask, once, in one keystroke:
+
+```
+? fix 41% or refactor 38%? [f/r, Enter keeps fix]
+```
+
+Set `CONVENTIONAL_ASK=0` to never be asked. Nothing is asked when there is no terminal (CI, editors).
 
 The scope is guessed from monorepo layouts (`packages/*`, `apps/*`, `crates/*`, `internal/*`...) and from the scopes already used in the history. `--scope api` forces one, `--no-scope` removes it.
 
@@ -149,10 +206,11 @@ Evaluated on held-out repositories that were never seen during training (a split
 
 | Setting | Top-1 | Top-2 |
 | --- | --- | --- |
-| Diff only | 59% | 79% |
-| Diff + repository history (the default inside a repository) | 63% | |
-| Diff + subject line (`-m`) | 64% | 82% |
-| Diff + history + subject line | 68% | |
+| Diff only (stdin, or a repository without history) | 59% | 79% |
+| Diff + repository history (the default inside a repository) | 70% | 88% |
+| Diff + subject line (`-m`), no history | 64% | 82% |
+
+The history numbers come from a chronological replay: each held-out commit is scored with only the commits before it, as `conventional eval` does.
 
 Trained on 488,111 commits from 244 repositories (36 of them, 77,429 commits, held out for the numbers above). Probabilities are calibrated: when it says 80%, it is right about 85% of the time; below 40%, about a third.
 
@@ -164,7 +222,9 @@ The "easy" types are where it shines (docs 86% recall, test 77%, ci 66%), and th
 python3 scripts/collect.py          # probe and clone repositories, extract (diff, type) pairs into data/raw
 go run ./cmd/featurize              # featurize with the exact code used at inference, into data/features
 python3 scripts/train.py --final    # train, calibrate, quantize, export internal/model/model.bin
-go build ./cmd/conventional         # the new model is embedded
+python3 scripts/experiments/exp_local2.py   # chronological replay of every repository (slow)
+python3 scripts/train_meta.py --final       # second stage, export internal/model/meta.bin
+go build ./cmd/conventional         # both models are embedded
 ```
 
 `scripts/repos.txt` is the seed list; `scripts/collect.py` keeps the repositories whose recent history is mostly conventional.
@@ -173,7 +233,7 @@ go build ./cmd/conventional         # the new model is embedded
 
 - feat, fix and refactor are inherently ambiguous from a diff alone. A three-line change can be any of them; only the author knows the intent. The subject line (`-m`) helps a lot.
 - revert is rarely detectable without the message.
-- It is a suggestion, not a linter. Use commitlint or similar if you need enforcement.
+- It is a suggestion. `conventional check` enforces the presence of a type and flags contradictions, but it will not argue about intent.
 
 ## License
 
