@@ -59,10 +59,8 @@ homebrew_casks:
     repository:
       owner: Halleck45
       name: homebrew-tap
-      token: '{{ index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}'
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}" # goreleaser accepts exactly this form
     directory: Casks
-    # publish to the tap only when its token is configured
-    skip_upload: '{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
     homepage: https://github.com/Halleck45/git-guess
     description: Guess the Conventional Commits type of a change from its diff
     license: MIT

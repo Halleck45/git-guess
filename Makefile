@@ -23,7 +23,7 @@ train-meta:
 	python3 scripts/train_meta.py --final
 
 release-snapshot:
-	goreleaser release --snapshot --clean
+	goreleaser release --snapshot --clean --skip=publish,homebrew
 
 web:
 	GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o web/git-guess.wasm ./cmd/wasm
