@@ -37,9 +37,24 @@ func run(args ...string) ([]byte, error) {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return nil, fmt.Errorf("git %s: %s", args[0], msg)
+		if strings.Contains(msg, "not a git repository") {
+			return nil, errors.New("not a git repository (pipe a diff on stdin, or run inside a repository)")
+		}
+		return nil, fmt.Errorf("git %s: %s", subcommand(args), strings.TrimPrefix(msg, "fatal: "))
 	}
 	return out, nil
+}
+
+// subcommand returns the git subcommand from args, skipping leading -c key=value pairs.
+func subcommand(args []string) string {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-c" {
+			i++
+			continue
+		}
+		return args[i]
+	}
+	return ""
 }
 
 // InRepo reports whether the working directory is inside a git repository.
