@@ -187,6 +187,7 @@ type History struct {
 	Types        map[string]int // type -> count
 	Scopes       map[string]int // scope -> count (only among conventional commits)
 	WithScope    int            // conventional commits carrying a scope
+	Emojis       map[string]int // gitmoji :shortcode: -> count, for repositories written in gitmoji
 }
 
 // ReadHistory inspects the last n commit subjects.
@@ -201,13 +202,16 @@ func ReadHistoryRange(skip, n int, known []string) (*History, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &History{Types: map[string]int{}, Scopes: map[string]int{}}
+	h := &History{Types: map[string]int{}, Scopes: map[string]int{}, Emojis: map[string]int{}}
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 		h.Commits++
+		if e, _, _, ok := gitmoji.Parse(line); ok {
+			h.Emojis[e.Code]++
+		}
 		t, s, ok := ParseHeader(line, known)
 		if !ok {
 			continue

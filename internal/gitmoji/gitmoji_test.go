@@ -135,7 +135,7 @@ func TestPick(t *testing.T) {
 		{"rename", "refactor", "", d(t, "R src/old.go->src/new.go|-package old|+package new"), ":truck:"},
 		{"rename with rewrite", "refactor", "", d(t, "R src/old.go->src/new.go|-a|-b|-c|-d|-e|-f|+1|+2|+3|+4|+5|+6"), ":recycle:"},
 		{"delete files", "refactor", "", d(t, "D src/legacy.go|-package legacy|-func Old() {}"), ":fire:"},
-		{"delete files chore", "chore", "", d(t, "D scripts/old.sh|-echo old"), ":fire:"},
+		{"delete files chore stays wrench", "chore", "", d(t, "D scripts/old.sh|-echo old"), ":wrench:"},
 		{"dead code", "refactor", "remove unused helpers", d(t, "M src/a.go|-func unused() {}"), ":coffin:"},
 		{"fix pure removal stays bug", "fix", "", d(t, "M src/a.go|-wrong line"), ":bug:"},
 		{"i18n files", "feat", "", d(t, "M locales/fr.json|+\"hello\": \"bonjour\""), ":globe_with_meridians:"},
@@ -150,13 +150,13 @@ func TestPick(t *testing.T) {
 		{"analytics", "feat", "add tracking on checkout", d(t, "M src/a.ts|+track()"), ":chart_with_upwards_trend:"},
 		{"feature flag", "feat", "put search behind a feature flag", d(t, "M src/a.ts|+flag"), ":triangular_flag_on_post:"},
 		{"authz", "feat", "check admin permissions", d(t, "M src/a.ts|+can()"), ":passport_control:"},
-		{"security", "fix", "prevent XSS in comments", d(t, "M src/a.ts|-x|+escape(x)"), ":lock:"},
+		{"security stays bug", "fix", "prevent XSS in comments", d(t, "M src/a.ts|-x|+escape(x)"), ":bug:"},
 		{"hotfix", "fix", "hotfix crash on start", d(t, "M src/a.ts|-x|+y"), ":ambulance:"},
-		{"typo fix", "fix", "fix typo in error message", d(t, "M src/a.ts|-recieve|+receive"), ":pencil2:"},
+		{"typo fix stays bug", "fix", "fix typo in error message", d(t, "M src/a.ts|-recieve|+receive"), ":bug:"},
 		{"typo docs", "docs", "typos", d(t, "M README.md|-teh|+the"), ":pencil2:"},
 		{"ci fix", "fix", "", d(t, "M .github/workflows/ci.yml|-x|+y"), ":green_heart:"},
 		{"ci fix message", "ci", "fix flaky release job", d(t, "M .github/workflows/release.yml|-x|+y"), ":green_heart:"},
-		{"catch", "fix", "handle errors from the API", d(t, "M src/a.ts|+try {"), ":goal_net:"},
+		{"css fix stays bug", "fix", "", d(t, "M web/style.css|-x|+y"), ":bug:"},
 		{"lint", "style", "fix lint warnings", d(t, "M src/a.go|-x|+y"), ":rotating_light:"},
 		{"comments", "docs", "", d(t, "M src/a.go|+// Login authenticates the user.|+// It returns an error when the password is wrong."), ":bulb:"},
 		{"comments with code stay memo", "docs", "", d(t, "M src/a.go|+// Login authenticates.|+func Login() {}"), ":memo:"},
@@ -180,14 +180,20 @@ func TestPick(t *testing.T) {
 		{"dep upgrade gemfile", "build", "", d(t, `M Gemfile|-gem "rails", "~> 7.0"|+gem "rails", "~> 7.1"`), ":arrow_up:"},
 		{"dep upgrade pubspec", "build", "", d(t, "M pubspec.yaml|-  http: ^1.1.0|+  http: ^1.2.0"), ":arrow_up:"},
 		{"dep upgrade gradle", "build", "", d(t, `M build.gradle.kts|-    implementation("com.squareup.okhttp3:okhttp:4.11.0")|+    implementation("com.squareup.okhttp3:okhttp:4.12.0")`), ":arrow_up:"},
+		{"dep lock only", "build", "", d(t, "M yarn.lock|-  version \"4.17.21\"|+  version \"4.17.23\""), ":arrow_up:"},
+		{"dep action bump", "ci", "", d(t, "M .github/workflows/ci.yml|-      - uses: actions/checkout@v4|+      - uses: actions/checkout@v5"), ":arrow_up:"},
+		{"dep action bump with other lines", "ci", "", d(t, "M .github/workflows/ci.yml|-      - uses: actions/checkout@v4|+      - uses: actions/checkout@v5|+      - run: echo hi"), ":construction_worker:"},
+		{"dep docker base image", "build", "", d(t, "M Dockerfile|-FROM golang:1.23-alpine|+FROM golang:1.24-alpine"), ":arrow_up:"},
+		{"dep bump message with unparsed lines", "build", "bump jest from 30.0.5 to 30.1.2", d(t, `M package.json|-    "jest": "30.0.5",|+    "jest": "30.1.2",`, "M test/__snapshots__/a.snap|-30.0.5|+30.1.2"), ":arrow_up:"},
 		{"dep mixed", "build", "", d(t, `M package.json|+    "zod": "^3.22.0",|-    "react": "^18.2.0",|+    "react": "^19.0.0",`), ":package:"},
 		{"build script change is not a dep", "build", "", d(t, `M package.json|-    "build": "tsc",|+    "build": "tsup",`), ":package:"},
 		{"build makefile", "build", "", d(t, "M Makefile|+lint:\n\tgolangci-lint run"), ":package:"},
 		{"version bump", "chore", "", d(t, `M package.json|-  "version": "1.2.0",|+  "version": "1.3.0",`, "M CHANGELOG.md|+## 1.3.0"), ":bookmark:"},
 		{"version file", "chore", "", d(t, "M VERSION|-1.2.0|+1.3.0"), ":bookmark:"},
 		{"release message", "chore", "release 1.3.0", d(t, "M src/a.go|-x|+y"), ":bookmark:"},
-		{"scripts", "chore", "", d(t, "M scripts/deploy.sh|+set -e"), ":hammer:"},
-		{"chore ci files", "chore", "", d(t, "M .github/workflows/ci.yml|+x"), ":construction_worker:"},
+		{"scripts stay wrench", "chore", "", d(t, "M scripts/deploy.sh|+set -e"), ":wrench:"},
+		{"chore ci files stay wrench", "chore", "", d(t, "M .github/workflows/ci.yml|+x"), ":wrench:"},
+		{"dependabot config", "ci", "", d(t, "M .github/dependabot.yml|+  interval: monthly"), ":wrench:"},
 		{"breaking", "feat", "", d(t, "M src/a.go|-x|+y"), ":boom:"},
 		{"empty diff", "feat", "", &diff.Diff{}, ":sparkles:"},
 		{"nil diff", "fix", "", nil, ":bug:"},
@@ -212,6 +218,32 @@ func TestCompareVersions(t *testing.T) {
 	for _, c := range cases {
 		if got := compareVersions(c.a, c.b); got != c.want {
 			t.Errorf("compareVersions(%q,%q) = %d want %d", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+func TestAdapt(t *testing.T) {
+	ui := map[string]int{":lipstick:": 20, ":art:": 1, ":bug:": 50, ":sparkles:": 30, ":globe_with_meridians:": 40, ":arrow_up:": 4,
+		":lock:": 4, ":wrench:": 100, ":bookmark:": 4}
+	cases := []struct {
+		pick, typ string
+		used      map[string]int
+		want      string
+	}{
+		{":art:", "style", ui, ":lipstick:"},             // a twentieth of the favorite: the repository writes 💄
+		{":lock:", "fix", ui, ":bug:"},                   // a tenth as often as 🐛: back to the favorite
+		{":sparkles:", "feat", ui, ":sparkles:"},         // 🌐 is more frequent, ✨ is still a habit: kept
+		{":arrow_up:", "build", ui, ":arrow_up:"},        // used, kept
+		{":package:", "build", ui, ":arrow_up:"},         // never used: the favorite of the type
+		{":bookmark:", "chore", ui, ":bookmark:"},        // rare next to 🔧, but structural and used: kept
+		{":hammer:", "chore", ui, ":wrench:"},            // never used, not structural
+		{":lock:", "fix", nil, ":lock:"},                 // no history: unchanged
+		{":construction:", "feat", ui, ":construction:"}, // not about the type
+		{":recycle:", "refactor", ui, ":recycle:"},       // no refactor history: unchanged
+	}
+	for _, c := range cases {
+		if got := Adapt(get(c.pick), c.typ, c.used); got.Code != c.want {
+			t.Errorf("Adapt(%s, %s) = %s want %s", c.pick, c.typ, got.Code, c.want)
 		}
 	}
 }

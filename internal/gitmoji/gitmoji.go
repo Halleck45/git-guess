@@ -217,7 +217,6 @@ func Format(e Emoji, scope, subject string, shortcode bool) string {
 var (
 	reWIP        = regexp.MustCompile(`^\s*\[?wip\b`)
 	reTypo       = regexp.MustCompile(`\btypos?\b`)
-	reSecurity   = regexp.MustCompile(`\b(security|vulnerab\w*|cve-\d|xss|csrf|ssrf|injection|sanitiz\w*)\b`)
 	reHotfix     = regexp.MustCompile(`\bhot-?fix\b`)
 	reCIFix      = regexp.MustCompile(`\b(fix\w*|broken|fail\w*|green|flaky|unbreak)\b`)
 	reA11y       = regexp.MustCompile(`\b(a11y|accessib\w*|aria|screen ?readers?)\b`)
@@ -234,11 +233,50 @@ var (
 	reArch       = regexp.MustCompile(`\barchitect\w*\b`)
 	reLint       = regexp.MustCompile(`\b(lint\w*|warnings?|eslint|clippy|golangci|rubocop|flake8|pylint|staticcheck|go vet)\b`)
 	reRelease    = regexp.MustCompile(`^\s*(release|bump (the )?version|prepare (the )?release|v?\d+\.\d+\.\d+)`)
-	reCatch      = regexp.MustCompile(`\b((catch|handle|swallow)\w* (the )?(errors?|exceptions?|panics?)|unhandled|uncaught)\b`)
 	reFailing    = regexp.MustCompile(`\b(failing|red) tests?\b`)
+	reBump       = regexp.MustCompile(`^\s*(bump|upgrade|update)\b`)
+	reDowngrade  = regexp.MustCompile(`^\s*(downgrade|rollback|roll back)\b`)
+	rePin        = regexp.MustCompile(`^\s*pin\b`)
+	reUsesDep    = regexp.MustCompile(`^\s*-?\s*uses:\s*([^@\s]+)@(\S+)`)
+	reFromDep    = regexp.MustCompile(`^\s*FROM\s+(?:--platform=\S+\s+)?([^:\s@]+)[:@](\S+)`)
 	reLogLine    = regexp.MustCompile(`(?i)(console\.(log|debug|info|warn|error|trace)\(|\b(log|logger|logging|logrus|zap|slog|tracing)\w*[.:]{1,2}(debug|info|infof|warn|warnf|warning|error|errorf|trace|fatal|print\w*)\b|fmt\.Print|println!|eprintln!|dbg!|\bprint\(|System\.(out|err)\.print|error_log\(|var_dump\(|\bdd\(|\bdump\(|\bconsole\.dir\()`)
 	reComment    = regexp.MustCompile(`^\s*(//|#|/\*|\*|--|;|<!--|-->|"""|''')`)
 )
+
+// Adapt bends a pick to the habits of a repository, given how many times
+// each :shortcode: appears in its history. An emoji the repository (almost)
+// never writes for that type gives way to the one it writes most: 💄 rather
+// than 🎨 in a project that never formats code, 🐛 rather than 🔒 in one
+// that never singles out security fixes. Without a gitmoji history the pick
+// is unchanged.
+func Adapt(e Emoji, typ string, used map[string]int) Emoji {
+	if len(used) == 0 || e.typ != typ {
+		return e // 🚧, 💥 and the like are not about the type
+	}
+	favorite, n := Emoji{}, 0
+	for _, cand := range All {
+		if cand.typ == typ && used[cand.Code] > n {
+			favorite, n = cand, used[cand.Code]
+		}
+	}
+	switch {
+	case n < 3:
+		return e // not enough history for this type
+	case used[e.Code]*10 >= n:
+		return e // a habit of this repository too
+	case structural[e.Code] && used[e.Code] > 0:
+		return e // the files leave no doubt, and the repository does write it
+	}
+	return favorite
+}
+
+// structural lists the intentions read from the files themselves rather
+// than from the subject or a hunch: a repository that writes them at all
+// gets them even when rare.
+var structural = map[string]bool{":bookmark:": true, ":heavy_plus_sign:": true, ":heavy_minus_sign:": true, ":arrow_up:": true,
+	":arrow_down:": true, ":pushpin:": true, ":see_no_evil:": true, ":page_facing_up:": true, ":busts_in_silhouette:": true,
+	":truck:": true, ":bento:": true, ":camera_flash:": true, ":label:": true, ":globe_with_meridians:": true, ":card_file_box:": true,
+	":green_heart:": true}
 
 // Pick chooses the gitmoji of a change classified as typ. The draft subject
 // (may be empty) is used for signals the diff cannot carry, such as "typo"
@@ -265,6 +303,8 @@ func Pick(typ string, breaking bool, d *diff.Diff, subject string) Emoji {
 		return get(":page_facing_up:")
 	case s.all(isContributors):
 		return get(":busts_in_silhouette:")
+	case s.all(isBotConfig):
+		return get(":wrench:") // dependabot/renovate files live under .github but are configuration
 	case s.moves():
 		return get(":truck:")
 	case s.allCat(features.CatI18n) && typ != "test":
@@ -310,25 +350,14 @@ func Pick(typ string, breaking bool, d *diff.Diff, subject string) Emoji {
 			return get(":fire:")
 		}
 	case "fix":
+		// Measured on gitmoji repositories: authors write 🐛 for nearly
+		// every fix, including security, a11y and CSS ones. Only two
+		// intentions are used consistently enough to be worth guessing.
 		switch {
-		case reSecurity.MatchString(msg):
-			return get(":lock:")
 		case reHotfix.MatchString(msg):
 			return get(":ambulance:")
-		case reTypo.MatchString(msg):
-			return get(":pencil2:")
 		case s.allCat(features.CatCI):
 			return get(":green_heart:")
-		case reA11y.MatchString(msg):
-			return get(":wheelchair:")
-		case reCatch.MatchString(msg):
-			return get(":goal_net:")
-		case s.all(isDatabase):
-			return get(":card_file_box:")
-		case s.allCat(features.CatStyle):
-			return get(":lipstick:")
-		case reLint.MatchString(msg):
-			return get(":rotating_light:")
 		}
 	case "docs":
 		switch {
@@ -370,31 +399,29 @@ func Pick(typ string, breaking bool, d *diff.Diff, subject string) Emoji {
 		case reFailing.MatchString(msg):
 			return get(":test_tube:")
 		}
-	case "build", "chore":
+	case "build", "chore", "ci":
 		if e := s.dependencies(); !e.IsZero() {
 			return e
 		}
 		switch {
-		case s.versionBump() || typ == "chore" && reRelease.MatchString(msg):
+		case typ == "ci" && reCIFix.MatchString(msg):
+			return get(":green_heart:")
+		case s.versionBump() || typ != "ci" && reRelease.MatchString(msg):
 			return get(":bookmark:")
-		case s.allCat(features.CatCI):
+		case reBump.MatchString(msg) && s.cat[features.CatBuild]+s.cat[features.CatLock]+s.cat[features.CatCI] > 0:
+			return get(":arrow_up:") // "bump x from a to b" with a manifest in the diff, even when the lines could not be parsed
+		case reDowngrade.MatchString(msg) && s.cat[features.CatBuild]+s.cat[features.CatLock] > 0:
+			return get(":arrow_down:")
+		case rePin.MatchString(msg) && s.cat[features.CatBuild]+s.cat[features.CatLock] > 0:
+			return get(":pushpin:")
+		case typ == "ci" && s.allCat(features.CatCI):
 			return get(":construction_worker:")
-		case s.pureRemoval() && typ == "chore":
-			return get(":fire:")
-		case typ == "chore" && s.allCat(features.CatScript):
-			return get(":hammer:")
-		case typ == "chore" && s.allCat(features.CatConfig):
-			return get(":wrench:")
 		case typ == "chore" && reTypo.MatchString(msg):
 			return get(":pencil2:")
 		case typ == "chore" && reDeprecate.MatchString(msg):
 			return get(":wastebasket:")
 		case typ == "chore" && s.all(isTypes):
 			return get(":label:")
-		}
-	case "ci":
-		if reCIFix.MatchString(msg) {
-			return get(":green_heart:")
 		}
 	}
 	return ForType(typ)
@@ -524,6 +551,11 @@ var contributorNames = map[string]bool{"authors": true, "authors.md": true, "aut
 	"contributors.txt": true, "maintainers": true, "maintainers.md": true, ".mailmap": true, "humans.txt": true, ".all-contributorsrc": true}
 
 func isContributors(f diff.File) bool { return contributorNames[base(f)] }
+
+func isBotConfig(f diff.File) bool {
+	b := base(f)
+	return b == "dependabot.yml" || b == "dependabot.yaml" || b == "renovate.json" || b == "renovate.json5" || strings.HasPrefix(b, ".renovaterc")
+}
 
 func isTypes(f diff.File) bool {
 	b := base(f)
@@ -688,30 +720,57 @@ func manifestParser(f diff.File) func(string) (string, string, bool) {
 	if p, ok := manifests[b]; ok {
 		return p
 	}
-	if strings.HasPrefix(b, "requirements") && strings.HasSuffix(b, ".txt") || b == "constraints.txt" {
+	switch {
+	case strings.HasPrefix(b, "requirements") && strings.HasSuffix(b, ".txt") || b == "constraints.txt":
 		return parseRequirementsDep
+	case strings.HasPrefix(b, "dockerfile") || strings.HasSuffix(b, ".dockerfile"):
+		return parseDockerDep
+	case features.Classify(f.Path) == features.CatCI && (strings.HasSuffix(b, ".yml") || strings.HasSuffix(b, ".yaml")):
+		return parseUsesDep // GitHub Actions pinned in workflows are dependencies too
 	}
 	return nil
+}
+
+func parseUsesDep(line string) (string, string, bool) {
+	m := reUsesDep.FindStringSubmatch(line)
+	if m == nil {
+		return "", "", false
+	}
+	return m[1], m[2], true
+}
+
+func parseDockerDep(line string) (string, string, bool) {
+	m := reFromDep.FindStringSubmatch(line)
+	if m == nil {
+		return "", "", false
+	}
+	return m[1], m[2], true
 }
 
 // dependencies returns the dependency emoji when the change is only about
 // dependencies: manifests and lock files, and every changed manifest line is
 // a dependency line. Additions give ➕, removals ➖, upgrades ⬆️, downgrades
 // ⬇️, and pinning a range to an exact version 📌. Mixed changes give the
-// generic 📦️. The zero Emoji means the change is not a dependency change.
+// generic 📦️, and a change to lock files alone is an upgrade (what a bot
+// bumping a transitive dependency produces). The zero Emoji means the change
+// is not a dependency change.
 func (s *summary) dependencies() Emoji {
 	type change struct{ old, new string }
 	deps := map[string]*change{}
-	manifestFiles := 0
+	manifestFiles, lockFiles := 0, 0
 	for _, f := range s.files {
 		parse := manifestParser(f)
 		if parse == nil {
 			if features.Classify(f.Path) == features.CatLock {
+				lockFiles++
 				continue
 			}
 			return Emoji{}
 		}
 		manifestFiles++
+		if len(f.Lines) < f.Added+f.Removed {
+			return Emoji{} // some lines were dropped by the parser: do not guess
+		}
 		for _, l := range f.Lines {
 			if strings.TrimSpace(l.Text) == "" || (base(f) == "package.json" || base(f) == "composer.json") && strings.Contains(l.Text, `"version"`) {
 				continue // a version bump next to a dependency bump is still about dependencies
@@ -732,7 +791,13 @@ func (s *summary) dependencies() Emoji {
 			}
 		}
 	}
-	if manifestFiles == 0 || len(deps) == 0 || s.n > 0 && s.truncatedLines() {
+	if manifestFiles == 0 {
+		if lockFiles > 0 && lockFiles == s.n {
+			return get(":arrow_up:")
+		}
+		return Emoji{}
+	}
+	if len(deps) == 0 {
 		return Emoji{}
 	}
 	added, removed, up, down, pinned, other := 0, 0, 0, 0, 0, 0

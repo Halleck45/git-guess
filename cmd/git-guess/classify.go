@@ -190,7 +190,13 @@ func classify(opts classifyOptions) (*Result, error) {
 	res.subject = opts.message
 	res.gitmoji = gitmojiMode(opts)
 	if res.gitmoji != "" {
-		res.pick = func(typ string) gitmoji.Emoji { return gitmoji.Pick(typ, res.Breaking, d, opts.message) }
+		var used map[string]int
+		if hist != nil {
+			used = hist.Emojis
+		}
+		res.pick = func(typ string) gitmoji.Emoji {
+			return gitmoji.Adapt(gitmoji.Pick(typ, res.Breaking, d, opts.message), typ, used)
+		}
 	}
 	res.setType(res.Type, res.Confidence)
 	if opts.explain && len(cands) > 1 {
