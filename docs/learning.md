@@ -36,6 +36,6 @@ Measured on 36 repositories the model had never seen (77,000 commits, split by r
 | Diff only, no history (stdin, brand-new repository) | 59% | 79% |
 | Diff + your repository's history (the default) | **70%** | **88%** |
 
-Probabilities are calibrated: above 90% confidence it is right 96% of the time; below 50% about 44%, which is why it asks instead of guessing silently.
+Probabilities are calibrated: above 90% confidence it is right 96% of the time; below 50% about 44%, which is why it asks instead of guessing silently. Run `git guess eval` in your own repository to see what to expect there.
 
 The remaining errors are almost all `feat` against `fix` against `refactor`, and `chore` against everything. That is not a modelling gap: the same three-line patch is a fix for one author and a refactor for another, and the diff does not carry intent. The easy types are where it shines (docs 86% recall, test 77%, ci 66% before local learning, higher after). Different projects label the same change differently, which is exactly why it reads your history.

@@ -64,17 +64,11 @@ From now on `git commit -m "add login"` becomes `feat(auth): add login`, a plain
 - uses: Halleck45/git-guess@v1     # labels every pull request from its diff, lints its commits
 ```
 
-## How good is it
-
-On 36 repositories it had never seen, guessing each commit from the diff and the commits before it: **70% top-1, 88% top-2**. Above 90% confidence it is right 96% of the time. Run `git guess eval` in your own repository to see what to expect there.
-
-The remaining errors are almost all feat against fix against refactor: the same three-line patch is a fix for one author and a refactor for another, and the diff does not carry intent. That is why it asks when unsure, and why it learns from your history rather than imposing a convention.
-
 ## Learn more
 
 - [Using git guess](docs/usage.md): every command, flag, exit code, the hook, JSON output
 - [In CI](docs/ci.md): the GitHub Action, labeling, `git guess check`
-- [How it learns your repository](docs/learning.md): the local index, `eval`, the numbers in full
+- [How it learns your repository](docs/learning.md): the local index, `eval`, and how good it is (70% top-1, 88% top-2 on unseen repositories)
 - [How it works](docs/how-it-works.md): the pipeline, and how to train your own model
 - [FAQ](docs/faq.md): privacy, speed, Windows, and how it compares to commitizen, commitlint and AI commit writers
 
