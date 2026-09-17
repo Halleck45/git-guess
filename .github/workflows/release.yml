@@ -3,6 +3,12 @@ name: release
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]  # semver only: the moving v1 tag of the action must not release
+  workflow_dispatch:
+    # republish an existing release to npm: gh workflow run release.yml -f version=v0.2.3
+    inputs:
+      version:
+        description: "Existing release tag to publish to npm (e.g. v0.2.3)"
+        required: true
 
 permissions:
   contents: write
@@ -19,6 +25,7 @@ jobs:
         with:
           go-version: "1.24"
       - uses: goreleaser/goreleaser-action@v6
+        if: github.event_name == 'push'
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -37,7 +44,9 @@ jobs:
         # Does not fail the release while the trusted publisher is not set up yet.
         continue-on-error: true
         working-directory: npm
+        env:
+          VERSION: ${{ inputs.version || github.ref_name }}
         run: |
           npm install -g npm@latest
-          npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
+          npm version "${VERSION#v}" --no-git-tag-version
           npm publish --access public
