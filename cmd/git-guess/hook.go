@@ -16,8 +16,8 @@ const hookMarker = "# managed by git-guess"
 
 const hookScript = `#!/bin/sh
 ` + hookMarker + ` — https://github.com/Halleck45/git-guess
-command -v conventional >/dev/null 2>&1 || exit 0
-exec conventional hook run "$@"
+command -v git-guess >/dev/null 2>&1 || exit 0
+exec git-guess hook run "$@"
 `
 
 func runHook(args []string, stdout, stderr io.Writer) error {
