@@ -14,6 +14,8 @@
 
 **Machine readable?** `--json` gives `type`, `scope`, `confidence`, `header`, `candidates`, `source`, `files`, `added`, `removed`, `adapted_to_repo`, `history_commits` and, with `--explain`, `nearest` and the driving features.
 
+**Gitmoji?** `--gitmoji` writes `✨ (auth): add login` instead of `feat(auth): add login`, `git config guess.gitmoji true` makes it the default for the hook too, and a history written in gitmoji is learned from like a conventional one. Details in [Using git guess](usage.md#gitmoji).
+
 
 
 ## Compared to other tools

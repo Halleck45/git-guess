@@ -43,8 +43,12 @@ Flags:
       --unstaged            only unstaged changes
       --all                 everything since HEAD (staged and unstaged)
       --min-confidence <p>  exit 3 when the confidence is below p (0..1)
+      --gitmoji[=code]      gitmoji header: "✨ (auth): add login" (code: ":sparkles: (auth): add login")
+      --no-gitmoji          conventional header even when guess.gitmoji is configured
       --no-color            disable colors
   -h, --help                this help
+
+Gitmoji every time: git config guess.gitmoji true (or: git guess hook install --gitmoji)
 
 Examples:
   git guess                        ✔ feat(auth)  ████████░░ 82%
@@ -81,6 +85,17 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) error {
 		if a == "--" {
 			positional = append(positional, args[i+1:]...)
 			break
+		}
+		if strings.HasPrefix(a, "--gitmoji=") { // optional value: keep it out of the generic --flag=value split
+			switch v := strings.TrimPrefix(a, "--gitmoji="); v {
+			case "code", "shortcode":
+				opts.gitmoji = "code"
+			case "emoji", "unicode", "true":
+				opts.gitmoji = "emoji"
+			default:
+				return fmt.Errorf("--gitmoji takes emoji or code, not %q", v)
+			}
+			continue
 		}
 		// --flag=value and -nN forms
 		if eq := strings.IndexByte(a, '='); eq > 0 && strings.HasPrefix(a, "--") {
@@ -147,6 +162,10 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) error {
 			if err == nil {
 				minConf, err = strconv.ParseFloat(s, 64)
 			}
+		case a == "--gitmoji":
+			opts.gitmoji = "emoji"
+		case a == "--no-gitmoji":
+			opts.noGitmoji = true
 		case a == "--no-color":
 			noColor = true
 		case a == "commit":
@@ -158,7 +177,7 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) error {
 			return runEval(args[i+1:], stdout, style{color: tty && !noColor && os.Getenv("NO_COLOR") == ""})
 		case a == "check":
 			tty := isTerminal(os.Stdout)
-			return runCheck(args[i+1:], stdout, stderr, style{color: tty && !noColor && os.Getenv("NO_COLOR") == ""})
+			return runCheck(args[i+1:], opts, stdout, stderr, style{color: tty && !noColor && os.Getenv("NO_COLOR") == ""})
 		case strings.HasPrefix(a, "-") && a != "-":
 			return fmt.Errorf("unknown flag %s (see --help)", a)
 		default:

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Halleck45/git-guess/internal/diff"
 	"github.com/Halleck45/git-guess/internal/features"
+	"github.com/Halleck45/git-guess/internal/gitmoji"
 	"github.com/Halleck45/git-guess/internal/gitx"
 	"github.com/Halleck45/git-guess/internal/history"
 	"github.com/Halleck45/git-guess/internal/model"
@@ -22,18 +23,20 @@ type checkResult struct {
 	Guess      string  `json:"guess"`
 	Confidence float64 `json:"confidence"`
 	Second     string  `json:"second,omitempty"`
-	Status     string  `json:"status"` // ok, missing, disputed
+	Suggestion string  `json:"suggestion,omitempty"` // header for a commit without type
+	Status     string  `json:"status"`               // ok, missing, disputed
 }
 
 const checkUsage = `usage: git guess check [<base>..<head>] [--strict] [--min-confidence 0.75] [--json] [--github]
 
 Checks every commit of the range (default: the current branch against its
-upstream, or HEAD~10..HEAD) for a Conventional Commits type, and flags
-declared types that the diff contradicts. Exit 1 when a commit has no type;
-with --strict, also when a type is disputed.`
+upstream, or HEAD~10..HEAD) for a Conventional Commits type (or a gitmoji),
+and flags declared types that the diff contradicts. Exit 1 when a commit has
+no type; with --strict, also when a type is disputed. Suggestions follow
+--gitmoji or the guess.gitmoji configuration.`
 
 // runCheck lints the commits of a range semantically.
-func runCheck(args []string, stdout, stderr io.Writer, st style) error {
+func runCheck(args []string, opts classifyOptions, stdout, stderr io.Writer, st style) error {
 	strict, asJSON, gh := false, false, false
 	minConf := 0.75
 	var rng string
@@ -48,6 +51,12 @@ func runCheck(args []string, stdout, stderr io.Writer, st style) error {
 			gh = true
 		case a == "--no-color":
 			st.color = false
+		case a == "--gitmoji":
+			opts.gitmoji = "emoji"
+		case a == "--gitmoji=code":
+			opts.gitmoji = "code"
+		case a == "--no-gitmoji":
+			opts.noGitmoji = true
 		case a == "--min-confidence":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--min-confidence needs a value")
@@ -76,6 +85,7 @@ func runCheck(args []string, stdout, stderr io.Writer, st style) error {
 		return err
 	}
 	meta, _ := model.DefaultMeta()
+	mode := gitmojiMode(opts)
 	out, err := exec.Command("git", "log", "--no-merges", "--format=%H%x00%s", rng).Output()
 	if err != nil {
 		return fmt.Errorf("git log %s: %w", rng, err)
@@ -128,9 +138,18 @@ func runCheck(args []string, stdout, stderr io.Writer, st style) error {
 		r := checkResult{Sha: sha, Subject: subjects[sha], Guess: c[0].Type, Confidence: c[0].P, Second: c[1].Type, Status: "ok"}
 		declared, _, ok := gitx.ParseHeader(subjects[sha], m.Classes)
 		switch {
+		case !ok && gitmoji.HasPrefix(subjects[sha]):
+			// A gitmoji without conventional meaning (🚧, ⚗️...): an
+			// intention was declared, there is nothing to dispute.
+			e, _, _, _ := gitmoji.Parse(subjects[sha])
+			r.Declared = e.Code
 		case !ok:
 			r.Status = "missing"
 			missing++
+			r.Suggestion = c[0].Type + ": " + r.Subject
+			if mode != "" {
+				r.Suggestion = gitmoji.Format(gitmoji.Pick(c[0].Type, false, d, r.Subject), "", r.Subject, mode == "code")
+			}
 		default:
 			r.Declared = declared
 			if declared != c[0].Type && declared != c[1].Type && c[0].P >= minConf {
@@ -156,9 +175,9 @@ func runCheck(args []string, stdout, stderr io.Writer, st style) error {
 				fmt.Fprintf(stdout, "  %s %s %s\n", st.green("✔"), st.dim(short), subj)
 			case "missing":
 				fmt.Fprintf(stdout, "  %s %s %s\n      %s %s\n", st.yellow("✘"), st.dim(short), subj,
-					st.dim("no type; suggestion:"), st.bold(fmt.Sprintf("%s: %s", r.Guess, r.Subject)))
+					st.dim("no type; suggestion:"), st.bold(r.Suggestion))
 				if gh {
-					fmt.Fprintf(stdout, "::error title=Missing commit type::%s %q has no Conventional Commits type, suggestion: %s\n", short, r.Subject, r.Guess)
+					fmt.Fprintf(stdout, "::error title=Missing commit type::%s %q has no commit type, suggestion: %s\n", short, r.Subject, r.Suggestion)
 				}
 			case "disputed":
 				fmt.Fprintf(stdout, "  %s %s %s\n      %s %s %s %s %s\n", st.yellow("?"), st.dim(short), subj,

@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+
+	"github.com/Halleck45/git-guess/internal/gitmoji"
 )
 
 // Source describes where a diff came from.
@@ -137,22 +139,45 @@ var ccRe = regexp.MustCompile(`^([A-Za-z]+)(?:\(([^)]*)\))?!?:(?:\s|$)`)
 
 var aliases = map[string]string{"tests": "test", "feature": "feat", "bugfix": "fix", "doc": "docs", "bug": "fix"}
 
-// ParseHeader extracts the conventional type and scope from a commit subject.
+// ParseHeader extracts the conventional type and scope from a commit
+// subject. A gitmoji subject ("✨ (auth): add login", ":bug: fix it") counts
+// when its emoji stands for a known type.
 func ParseHeader(subject string, known []string) (typ, scope string, ok bool) {
-	m := ccRe.FindStringSubmatch(subject)
-	if m == nil {
-		return "", "", false
-	}
-	t := strings.ToLower(m[1])
-	if a, ok := aliases[t]; ok {
-		t = a
+	var t string
+	if e, s, _, isGitmoji := gitmoji.Parse(subject); isGitmoji {
+		t, scope = e.Type(), s
+	} else {
+		m := ccRe.FindStringSubmatch(subject)
+		if m == nil {
+			return "", "", false
+		}
+		t, scope = strings.ToLower(m[1]), strings.TrimSpace(m[2])
+		if a, ok := aliases[t]; ok {
+			t = a
+		}
 	}
 	for _, k := range known {
-		if k == t {
-			return t, strings.TrimSpace(m[2]), true
+		if k == t && t != "" {
+			return t, scope, true
 		}
 	}
 	return "", "", false
+}
+
+// SetConfig writes a repository-local configuration value.
+func SetConfig(key, value string) error {
+	_, err := run("config", key, value)
+	return err
+}
+
+// Config returns a git configuration value, or "" when unset or outside a
+// repository.
+func Config(key string) string {
+	out, err := run("config", "--get", key)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // History summarizes the recent commit subjects of the repository.
@@ -162,6 +187,7 @@ type History struct {
 	Types        map[string]int // type -> count
 	Scopes       map[string]int // scope -> count (only among conventional commits)
 	WithScope    int            // conventional commits carrying a scope
+	Emojis       map[string]int // gitmoji :shortcode: -> count, for repositories written in gitmoji
 }
 
 // ReadHistory inspects the last n commit subjects.
@@ -176,13 +202,16 @@ func ReadHistoryRange(skip, n int, known []string) (*History, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &History{Types: map[string]int{}, Scopes: map[string]int{}}
+	h := &History{Types: map[string]int{}, Scopes: map[string]int{}, Emojis: map[string]int{}}
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 		h.Commits++
+		if e, _, _, ok := gitmoji.Parse(line); ok {
+			h.Emojis[e.Code]++
+		}
 		t, s, ok := ParseHeader(line, known)
 		if !ok {
 			continue

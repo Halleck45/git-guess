@@ -46,4 +46,4 @@ $ git guess check main..HEAD
 3 commits checked, 1 without type, 1 disputed
 ```
 
-Unlike commitlint, it reads the diff. Exit code 1 when a commit has no type, `--strict` to fail on disputed ones too, `--github` for workflow annotations, `--json` for everything else. Without a range it checks the current branch against its upstream.
+Unlike commitlint, it reads the diff. Exit code 1 when a commit has no type, `--strict` to fail on disputed ones too, `--github` for workflow annotations, `--json` for everything else. Without a range it checks the current branch against its upstream. Gitmoji subjects count as typed, and suggestions follow `--gitmoji` or `guess.gitmoji`.
