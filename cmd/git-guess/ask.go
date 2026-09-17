@@ -33,14 +33,12 @@ func maybeAsk(res *Result, stderr *os.File) {
 	case ans == "" || strings.HasPrefix(a.Type, ans):
 		return
 	case strings.HasPrefix(b.Type, ans):
-		res.Type = b.Type
-		res.Confidence = b.P
+		res.setType(b.Type, b.P)
 	default:
 		for _, c := range res.Candidates {
 			if c.Type == ans {
-				res.Type, res.Confidence = c.Type, c.P
+				res.setType(c.Type, c.P)
 			}
 		}
 	}
-	res.Header = res.formatHeader(strings.TrimSpace(strings.TrimPrefix(res.Header, strings.SplitN(res.Header, ":", 2)[0]+":")))
 }

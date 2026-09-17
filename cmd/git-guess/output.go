@@ -61,6 +61,9 @@ func render(w io.Writer, r *Result, quiet, asJSON, tty bool, st style) {
 		conf = st.yellow(percent(r.Confidence))
 		mark = st.yellow("?")
 	}
+	if r.Emoji != "" { // the type is not readable from the emoji alone
+		head += "  " + st.dim(r.Type)
+	}
 	fmt.Fprintf(w, "%s %s  %s %s\n", mark, st.bold(head), st.dim(bar(r.Confidence, 10)), conf)
 	if len(r.Candidates) > 1 {
 		var alts []string

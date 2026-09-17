@@ -37,6 +37,21 @@ The hook never blocks a commit: if anything fails, your message goes through unt
 
 Prefer a wrapper to a hook? `git guess commit -m "add login"` runs `git commit -m "feat(auth): add login"` and passes every other argument through (`-a`, `-s`, `--amend`, `--no-verify`...).
 
+## Gitmoji
+
+Repositories that speak [gitmoji](https://gitmoji.dev) get the same guess, written the gitmoji way:
+
+```sh
+git guess --gitmoji -m "add login"        # ✨ (auth): add login
+git guess --gitmoji=code -m "add login"   # :sparkles: (auth): add login
+git config guess.gitmoji true             # from now on, every command and the hook (code for :shortcodes:)
+git guess hook install --gitmoji          # installs the hook and sets that configuration
+```
+
+The type is still guessed by the classifier; the emoji is then narrowed down from the diff, and from the subject when there is one. Every file renamed gives 🚚, only deletions 🔥, a lone `.gitignore` 🙈, only `LICENSE` 📄, snapshots 📸, CSS files 💄, a `.d.ts` 🏷️, SQL migrations 🗃️, comment-only lines 💡, log lines 🔊/🔇. A dependency manifest (`package.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `requirements.txt`, `composer.json`, `Gemfile`, `pubspec.yaml`, `build.gradle`...) is read line by line: ➕ added, ➖ removed, ⬆️ upgraded, ⬇️ downgraded, 📌 pinned. A version bump with its changelog is 🔖. The subject adds "typo" ✏️, "hotfix" 🚑️, "security" 🔒️, "a11y" ♿️, "wip" 🚧 and a few more. Otherwise the usual table applies: ✨ feat, 🐛 fix, 📝 docs, 🎨 style, ♻️ refactor, ⚡️ perf, ✅ test, 📦️ build, 👷 ci, 🔧 chore, ⏪️ revert.
+
+It reads gitmoji too: a history written in gitmoji is learned from like a conventional one (`eval`, the local index and `check` all understand `✨ (auth): add login` and `:sparkles: add login`), and the hook leaves a subject that already starts with an emoji alone. `--no-gitmoji` prints the conventional header regardless of the configuration.
+
 
 ## Flags and exit codes
 
@@ -53,12 +68,14 @@ Prefer a wrapper to a hook? `git guess commit -m "add login"` runs `git commit -
     --unstaged            only unstaged changes
     --all                 everything since HEAD
     --min-confidence <p>  exit 3 when the confidence is below p (0..1)
+    --gitmoji[=code]      gitmoji header, unicode or :shortcode: (see Gitmoji)
+    --no-gitmoji          conventional header even when guess.gitmoji is set
     --no-color            disable colors
 ```
 
 Exit codes: `0` ok, `1` error (no changes, not a diff, git failure), `3` confidence below `--min-confidence`.
 
-`--json` gives `type`, `scope`, `confidence`, `header`, `candidates`, `source`, `files`, `added`, `removed`, `adapted_to_repo`, `history_commits` and, with `--explain`, `nearest` and the driving features.
+`--json` gives `type`, `scope`, `confidence`, `header`, `candidates`, `source`, `files`, `added`, `removed`, `adapted_to_repo`, `history_commits`, with `--gitmoji` `emoji` and `emoji_code`, and with `--explain`, `nearest` and the driving features.
 
 ```json
 {

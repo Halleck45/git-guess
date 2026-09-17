@@ -2,7 +2,7 @@
 
 ## Local learning
 
-The first time it runs in a repository, `git guess` indexes the last 1,000 conventional commits (a second or two, once; the index lives in `.git/git-guess/` and is refreshed incrementally). Every guess then weighs the global model against three local pieces of evidence:
+The first time it runs in a repository, `git guess` indexes the last 1,000 conventional (or gitmoji) commits (a second or two, once; the index lives in `.git/git-guess/` and is refreshed incrementally). Every guess then weighs the global model against three local pieces of evidence:
 
 - the types of the past diffs most similar to yours,
 - what this repository tends to call what the global model guesses (a project that says `chore` for CI changes gets `chore`),

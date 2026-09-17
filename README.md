@@ -47,6 +47,7 @@ Or grab the binary for Linux, macOS or Windows (amd64, arm64) from the [releases
 git guess                       # what are my staged changes?
 git guess -m "add login"        # feat(auth): add login
 git guess HEAD~1                # a commit, or a range such as main..feature
+git guess --gitmoji -m "add login"   # ✨ (auth): add login
 git guess eval                  # how well does it do on this repository's own history?
 ```
 
@@ -66,7 +67,7 @@ From now on `git commit -m "add login"` becomes `feat(auth): add login`, a plain
 
 ## Learn more
 
-- [Using git guess](docs/usage.md): every command, flag, exit code, the hook, JSON output
+- [Using git guess](docs/usage.md): every command, flag, exit code, the hook, JSON output, gitmoji
 - [In CI](docs/ci.md): the GitHub Action, labeling, `git guess check`
 - [How it learns your repository](docs/learning.md): the local index, `eval`, and how good it is (70% top-1, 88% top-2 on unseen repositories)
 - [How it works](docs/how-it-works.md): the pipeline, and how to train your own model

@@ -47,10 +47,26 @@ func hookPath() (string, bool, error) {
 }
 
 func hookInstall(args []string, stdout io.Writer) error {
-	force := len(args) > 0 && args[0] == "--force"
+	force, withGitmoji := false, false
+	for _, a := range args {
+		switch a {
+		case "--force":
+			force = true
+		case "--gitmoji":
+			withGitmoji = true
+		default:
+			return fmt.Errorf("unknown hook install flag %s (--force, --gitmoji)", a)
+		}
+	}
 	p, custom, err := hookPath()
 	if err != nil {
 		return err
+	}
+	if withGitmoji {
+		if err := gitx.SetConfig("guess.gitmoji", "true"); err != nil {
+			return err
+		}
+		fmt.Fprintln(stdout, "set guess.gitmoji=true in this repository: headers will be gitmoji (git config --unset guess.gitmoji to go back)")
 	}
 	if b, err := os.ReadFile(p); err == nil {
 		if strings.Contains(string(b), hookMarker) {
@@ -71,7 +87,11 @@ func hookInstall(args []string, stdout io.Writer) error {
 	if custom {
 		fmt.Fprintln(stdout, "note: core.hooksPath is set, the hook was written there")
 	}
-	fmt.Fprintln(stdout, "git commit -m \"add login\" now becomes \"feat: add login\" (uninstall with: git guess hook uninstall)")
+	example := "feat: add login"
+	if gitmojiMode(classifyOptions{}) != "" {
+		example = "✨ add login"
+	}
+	fmt.Fprintf(stdout, "git commit -m \"add login\" now becomes %q (uninstall with: git guess hook uninstall)\n", example)
 	return nil
 }
 

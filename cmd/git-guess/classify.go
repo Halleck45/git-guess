@@ -9,6 +9,7 @@ import (
 
 	"github.com/Halleck45/git-guess/internal/diff"
 	"github.com/Halleck45/git-guess/internal/features"
+	"github.com/Halleck45/git-guess/internal/gitmoji"
 	"github.com/Halleck45/git-guess/internal/gitx"
 	"github.com/Halleck45/git-guess/internal/history"
 	"github.com/Halleck45/git-guess/internal/model"
@@ -20,6 +21,8 @@ type Result struct {
 	Type       string              `json:"type"`
 	Scope      string              `json:"scope,omitempty"`
 	Breaking   bool                `json:"breaking,omitempty"`
+	Emoji      string              `json:"emoji,omitempty"`      // gitmoji, when asked for
+	EmojiCode  string              `json:"emoji_code,omitempty"` // its :shortcode:
 	Confidence float64             `json:"confidence"`
 	Header     string              `json:"header"`
 	Candidates []model.Candidate   `json:"candidates"`
@@ -31,6 +34,10 @@ type Result struct {
 	History    int                 `json:"history_commits,omitempty"`
 	Nearest    []history.Neighbour `json:"nearest,omitempty"`
 	Explain    *Explanation        `json:"explain,omitempty"`
+
+	subject string                         // draft subject the header was built with
+	gitmoji string                         // "", "emoji" or "code"
+	pick    func(typ string) gitmoji.Emoji // gitmoji of a type for this diff
 }
 
 // Explanation lists the features that drove the decision.
@@ -52,10 +59,33 @@ type classifyOptions struct {
 	top      int
 	lambda   float64
 	fallback bool
+	// gitmoji is "" (conventional header), "emoji" or "code"; the empty
+	// value defers to the guess.gitmoji git configuration unless noGitmoji.
+	gitmoji   string
+	noGitmoji bool
 }
 
-// Header formats a conventional commit header.
+// gitmojiMode resolves the output style: the flag wins, then the
+// guess.gitmoji configuration (true/emoji, or code for :shortcodes:).
+func gitmojiMode(opts classifyOptions) string {
+	if opts.gitmoji != "" || opts.noGitmoji {
+		return opts.gitmoji
+	}
+	switch strings.ToLower(gitx.Config("guess.gitmoji")) {
+	case "true", "1", "yes", "on", "emoji", "unicode":
+		return "emoji"
+	case "code", "shortcode", "shortcodes":
+		return "code"
+	}
+	return ""
+}
+
+// formatHeader formats the commit header: "type(scope)!: subject", or in
+// gitmoji mode "✨ (scope): subject".
 func (r *Result) formatHeader(subject string) string {
+	if r.gitmoji != "" {
+		return gitmoji.Format(r.emoji(), r.Scope, subject, r.gitmoji == "code")
+	}
 	h := r.Type
 	if r.Scope != "" {
 		h += "(" + r.Scope + ")"
@@ -68,6 +98,25 @@ func (r *Result) formatHeader(subject string) string {
 		h += " " + subject
 	}
 	return h
+}
+
+// emoji returns the gitmoji of the current type, recomputed after the type
+// changed (the user picked the runner-up).
+func (r *Result) emoji() gitmoji.Emoji {
+	if r.pick == nil {
+		return gitmoji.ForType(r.Type)
+	}
+	return r.pick(r.Type)
+}
+
+// setType changes the chosen type and everything derived from it.
+func (r *Result) setType(typ string, p float64) {
+	r.Type, r.Confidence = typ, p
+	if r.gitmoji != "" {
+		e := r.emoji()
+		r.Emoji, r.EmojiCode = e.Unicode, e.Code
+	}
+	r.Header = r.formatHeader(r.subject)
 }
 
 func classify(opts classifyOptions) (*Result, error) {
@@ -138,7 +187,12 @@ func classify(opts classifyOptions) (*Result, error) {
 	case !opts.noScope:
 		res.Scope = scope.Guess(d, hist)
 	}
-	res.Header = res.formatHeader(opts.message)
+	res.subject = opts.message
+	res.gitmoji = gitmojiMode(opts)
+	if res.gitmoji != "" {
+		res.pick = func(typ string) gitmoji.Emoji { return gitmoji.Pick(typ, res.Breaking, d, opts.message) }
+	}
+	res.setType(res.Type, res.Confidence)
 	if opts.explain && len(cands) > 1 {
 		other := m.ClassIndex(cands[1].Type)
 		pos, neg := m.Explain(v, m.ClassIndex(cands[0].Type), other, 8)
@@ -190,10 +244,12 @@ func indexProgress() history.Progress {
 	}
 }
 
-// hasConventionalPrefix reports whether a subject already carries a type.
+// hasConventionalPrefix reports whether a subject already carries a type,
+// conventional or gitmoji.
 func hasConventionalPrefix(subject string, classes []string) bool {
-	_, _, ok := gitx.ParseHeader(strings.TrimSpace(subject), classes)
-	return ok
+	subject = strings.TrimSpace(subject)
+	_, _, ok := gitx.ParseHeader(subject, classes)
+	return ok || gitmoji.HasPrefix(subject)
 }
 
 func percent(p float64) string {

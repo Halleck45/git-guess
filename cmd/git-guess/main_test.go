@@ -251,7 +251,7 @@ func TestCheck(t *testing.T) {
 	git(t, dir, "add", ".")
 	git(t, dir, "commit", "-q", "-m", "add b without a type")
 	var out bytes.Buffer
-	err := runCheck([]string{"HEAD~2..HEAD", "--json"}, &out, &out, style{})
+	err := runCheck([]string{"HEAD~2..HEAD", "--json"}, classifyOptions{}, &out, &out, style{})
 	if err == nil {
 		t.Fatalf("expected exit 1 for a commit without type\n%s", out.String())
 	}
@@ -264,5 +264,107 @@ func TestCheck(t *testing.T) {
 	}
 	if res.Commits[0].Status != "ok" || res.Commits[1].Status != "missing" || res.Commits[1].Guess == "" {
 		t.Errorf("statuses: %+v", res.Commits)
+	}
+}
+
+func TestRunGitmoji(t *testing.T) {
+	dir := tempRepo(t)
+	os.MkdirAll(filepath.Join(dir, "docs"), 0o755)
+	os.WriteFile(filepath.Join(dir, "docs", "guide.md"), []byte("# Guide\n\nHow to use the thing.\n"), 0o644)
+	git(t, dir, "add", ".")
+	var out bytes.Buffer
+	if err := run([]string{"--gitmoji", "--no-prior", "-m", "explain the thing"}, os.Stdin, &out, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out.String()) != "📝 explain the thing" {
+		t.Errorf("gitmoji header: %q", out.String())
+	}
+	out.Reset()
+	if err := run([]string{"--gitmoji=code", "--json", "--no-prior"}, os.Stdin, &out, &out); err != nil {
+		t.Fatal(err)
+	}
+	var res Result
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		t.Fatalf("bad json: %v\n%s", err, out.String())
+	}
+	if res.Type != "docs" || res.Emoji != "📝" || res.EmojiCode != ":memo:" || res.Header != ":memo:" {
+		t.Errorf("unexpected result: type=%s emoji=%s code=%s header=%q", res.Type, res.Emoji, res.EmojiCode, res.Header)
+	}
+	if err := run([]string{"--gitmoji=nope"}, os.Stdin, &out, &out); err == nil {
+		t.Error("expected an error for --gitmoji=nope")
+	}
+	// The configuration turns it on, --no-gitmoji turns it off again.
+	git(t, dir, "config", "guess.gitmoji", "true")
+	out.Reset()
+	run([]string{"-m", "explain", "--no-prior"}, os.Stdin, &out, &out)
+	if strings.TrimSpace(out.String()) != "📝 explain" {
+		t.Errorf("config not honored: %q", out.String())
+	}
+	out.Reset()
+	run([]string{"-m", "explain", "--no-prior", "--no-gitmoji"}, os.Stdin, &out, &out)
+	if strings.TrimSpace(out.String()) != "docs: explain" {
+		t.Errorf("--no-gitmoji not honored: %q", out.String())
+	}
+}
+
+func TestHookGitmoji(t *testing.T) {
+	dir := tempRepo(t)
+	var out bytes.Buffer
+	if err := runHook([]string{"install", "--gitmoji"}, &out, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(git(t, dir, "config", "guess.gitmoji")) != "true" {
+		t.Fatalf("install --gitmoji did not set the config: %s", out.String())
+	}
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# hi\n\nMore words here.\n"), 0o644)
+	git(t, dir, "add", ".")
+	msg := filepath.Join(dir, "MSG")
+	check := func(content, source, wantPrefix string) {
+		t.Helper()
+		os.WriteFile(msg, []byte(content), 0o644)
+		hookRun([]string{msg, source}, &bytes.Buffer{})
+		b, _ := os.ReadFile(msg)
+		if !strings.HasPrefix(string(b), wantPrefix) {
+			t.Errorf("source=%q content=%q: got %q, want prefix %q", source, content, b, wantPrefix)
+		}
+	}
+	check("update readme\n", "message", "📝 update readme")
+	check("✨ already gitmoji\n", "message", "✨ already gitmoji")
+	check(":memo: shortcode too\n", "message", ":memo: shortcode too")
+	check("docs: already conventional\n", "message", "docs: already conventional")
+	check("\n# Please enter the commit message\n", "", "📝 \n")
+}
+
+func TestCheckGitmoji(t *testing.T) {
+	dir := tempRepo(t)
+	commit := func(name, subject string) {
+		os.WriteFile(filepath.Join(dir, name), []byte("# "+name+"\n\nwords\n"), 0o644)
+		git(t, dir, "add", ".")
+		git(t, dir, "commit", "-q", "-m", subject)
+	}
+	commit("a.md", "📝 add a")
+	commit("b.md", "🚧 wip on b")
+	commit("c.md", "add c without a type")
+	git(t, dir, "config", "guess.gitmoji", "true")
+	var out bytes.Buffer
+	err := runCheck([]string{"HEAD~3..HEAD", "--json"}, classifyOptions{}, &out, &out, style{})
+	if err == nil {
+		t.Fatalf("expected exit 1 for a commit without type\n%s", out.String())
+	}
+	var res struct {
+		Missing int `json:"missing"`
+		Commits []checkResult
+	}
+	if jerr := json.Unmarshal(out.Bytes(), &res); jerr != nil || res.Missing != 1 || len(res.Commits) != 3 {
+		t.Fatalf("bad check output (%v): %s", jerr, out.String())
+	}
+	if res.Commits[0].Status != "ok" || res.Commits[0].Declared != "docs" {
+		t.Errorf("gitmoji commit: %+v", res.Commits[0])
+	}
+	if res.Commits[1].Status != "ok" || res.Commits[1].Declared != ":construction:" {
+		t.Errorf("wip commit: %+v", res.Commits[1])
+	}
+	if res.Commits[2].Status != "missing" || res.Commits[2].Suggestion != "📝 add c without a type" {
+		t.Errorf("missing commit: %+v", res.Commits[2])
 	}
 }
